@@ -204,7 +204,7 @@ gst_vaapidecode_update_src_caps (GstVaapiDecode * decode)
 
   feature =
       gst_vaapi_find_preferred_caps_feature (GST_VIDEO_DECODER_SRC_PAD (vdec),
-      GST_VIDEO_INFO_FORMAT (&ref_state->info), &format);
+      GST_VIDEO_FORMAT_NV12/*GST_VIDEO_INFO_FORMAT (&ref_state->info)*/, &format);
 
   if (feature == GST_VAAPI_CAPS_FEATURE_NOT_NEGOTIATED)
     return FALSE;
