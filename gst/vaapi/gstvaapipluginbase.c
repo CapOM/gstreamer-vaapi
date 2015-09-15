@@ -342,61 +342,6 @@ gst_vaapi_plugin_base_ensure_display (GstVaapiPluginBase * plugin)
   return TRUE;
 }
 
-/* Checks whether the supplied pad peer element supports DMABUF sharing */
-/* XXX: this is a workaround to the absence of any proposer way to
-   specify DMABUF memory capsfeatures or bufferpool option to downstream */
-static gboolean
-has_dmabuf_capable_peer (GstVaapiPluginBase * plugin, GstPad * pad)
-{
-  GstPad *other_pad = NULL;
-  GstElement *element = NULL;
-  gchar *element_name = NULL;
-  gboolean is_dmabuf_capable = FALSE;
-  gint v;
-
-  gst_object_ref (pad);
-
-  for (;;) {
-    other_pad = gst_pad_get_peer (pad);
-    gst_object_unref (pad);
-    if (!other_pad)
-      break;
-
-    element = gst_pad_get_parent_element (other_pad);
-    gst_object_unref (other_pad);
-    if (!element)
-      break;
-
-    if (GST_IS_PUSH_SRC (element)) {
-      element_name = gst_element_get_name (element);
-      if (!element_name || sscanf (element_name, "v4l2src%d", &v) != 1)
-        break;
-
-      v = 0;
-      g_object_get (element, "io-mode", &v, NULL);
-      is_dmabuf_capable = v == 5;       /* "dmabuf-import" enum value */
-      break;
-    } else if (GST_IS_BASE_TRANSFORM (element)) {
-      element_name = gst_element_get_name (element);
-      if (!element_name || sscanf (element_name, "capsfilter%d", &v) != 1)
-        break;
-
-      pad = gst_element_get_static_pad (element, "sink");
-      if (!pad)
-        break;
-    } else
-      break;
-
-    g_free (element_name);
-    element_name = NULL;
-    g_clear_object (&element);
-  }
-
-  g_free (element_name);
-  g_clear_object (&element);
-  return is_dmabuf_capable;
-}
-
 /**
  * ensure_sinkpad_buffer_pool:
  * @plugin: a #GstVaapiPluginBase
@@ -528,16 +473,6 @@ gst_vaapi_plugin_base_propose_allocation (GstVaapiPluginBase * plugin,
       return FALSE;
     gst_query_add_allocation_pool (query, plugin->sinkpad_buffer_pool,
         plugin->sinkpad_buffer_size, 0, 0);
-
-    if (has_dmabuf_capable_peer (plugin, plugin->sinkpad)) {
-      GstStructure *const config =
-          gst_buffer_pool_get_config (plugin->sinkpad_buffer_pool);
-
-      gst_buffer_pool_config_add_option (config,
-          GST_BUFFER_POOL_OPTION_DMABUF_MEMORY);
-      if (!gst_buffer_pool_set_config (plugin->sinkpad_buffer_pool, config))
-        goto error_pool_config;
-    }
   }
 
   gst_query_add_allocation_meta (query, GST_VAAPI_VIDEO_META_API_TYPE, NULL);
