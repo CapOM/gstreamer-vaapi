@@ -214,16 +214,20 @@ gst_vaapipostproc_ensure_filter (GstVaapiPostproc * postproc)
   if (postproc->filter)
     return TRUE;
 
-  if (!gst_vaapipostproc_ensure_display (postproc))
+  if (!gst_vaapipostproc_ensure_display (postproc)) {
+    GST_WARNING("Failed to setup display while setting-up postproc");
     return FALSE;
+  }
 
   gst_caps_replace (&postproc->allowed_srcpad_caps, NULL);
   gst_caps_replace (&postproc->allowed_sinkpad_caps, NULL);
 
   postproc->filter =
       gst_vaapi_filter_new (GST_VAAPI_PLUGIN_BASE_DISPLAY (postproc));
-  if (!postproc->filter)
+  if (!postproc->filter) {
+    GST_WARNING("Failed to instanciate vaapi filter while setting-up postproc");
     return FALSE;
+  }
   return TRUE;
 }
 
@@ -293,10 +297,15 @@ gst_vaapipostproc_start (GstBaseTransform * trans)
   GstVaapiPostproc *const postproc = GST_VAAPIPOSTPROC (trans);
 
   ds_reset (&postproc->deinterlace_state);
-  if (!gst_vaapi_plugin_base_open (GST_VAAPI_PLUGIN_BASE (postproc)))
+  if (!gst_vaapi_plugin_base_open (GST_VAAPI_PLUGIN_BASE (postproc))) {
+    GST_WARNING("Failed to start because postproc cannot be open");
     return FALSE;
-  if (!gst_vaapipostproc_ensure_filter (postproc))
+  }
+  if (!gst_vaapipostproc_ensure_filter (postproc)) {
+    GST_WARNING("Failed to start because postproc cannot be setup");
     return FALSE;
+  }
+
   return TRUE;
 }
 
