@@ -50,6 +50,8 @@ typedef struct _GstVaapiVideoAllocatorClass GstVaapiVideoAllocatorClass;
 
 #define GST_CAPS_FEATURE_MEMORY_VAAPI_SURFACE   "memory:VASurface"
 
+#define GST_CAPS_FEATURE_MEMORY_VAAPI_DMABUF   "memory:" GST_ALLOCATOR_DMABUF
+
 #define GST_VAAPI_VIDEO_MEMORY_FLAG_IS_SET(mem, flag) \
   GST_MEMORY_FLAG_IS_SET (mem, flag)
 #define GST_VAAPI_VIDEO_MEMORY_FLAG_SET(mem, flag) \

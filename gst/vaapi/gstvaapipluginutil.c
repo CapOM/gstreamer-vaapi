@@ -441,6 +441,7 @@ gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstVideoFormat format,
   GstCaps *caps = NULL;
   GstCaps *gl_texture_upload_caps = NULL;
   GstCaps *sysmem_caps = NULL;
+  GstCaps *dmabuf_caps = NULL;
   GstCaps *vaapi_caps = NULL;
   GstCaps *out_caps, *templ;
   GstVideoFormat out_format;
@@ -458,6 +459,12 @@ gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstVideoFormat format,
 
   gl_texture_upload_caps = new_gl_texture_upload_meta_caps ();
   if (!gl_texture_upload_caps)
+    goto cleanup;
+
+  dmabuf_caps =
+      gst_vaapi_video_format_new_template_caps_with_features (out_format,
+      GST_CAPS_FEATURE_MEMORY_VAAPI_DMABUF);
+  if (!dmabuf_caps)
     goto cleanup;
 
   vaapi_caps =
@@ -488,7 +495,10 @@ gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstVideoFormat format,
       continue;
     gst_caps_set_features (caps, 0, gst_caps_features_copy (features));
 
-    if (gst_caps_can_intersect (caps, vaapi_caps) &&
+    if (gst_caps_can_intersect (caps, dmabuf_caps) &&
+        feature < GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF)
+      feature = GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF;
+    else if (gst_caps_can_intersect (caps, vaapi_caps) &&
         feature < GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE)
       feature = GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE;
     else if (gst_caps_can_intersect (caps, gl_texture_upload_caps) &&
@@ -555,6 +565,9 @@ gst_vaapi_caps_feature_to_string (GstVaapiCapsFeature feature)
       break;
     case GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE:
       str = GST_CAPS_FEATURE_MEMORY_VAAPI_SURFACE;
+      break;
+    case GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF:
+      str = GST_CAPS_FEATURE_MEMORY_VAAPI_DMABUF;
       break;
     default:
       str = NULL;
