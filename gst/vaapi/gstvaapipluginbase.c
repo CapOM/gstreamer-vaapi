@@ -779,14 +779,16 @@ gst_vaapi_plugin_base_get_input_buffer (GstVaapiPluginBase * plugin,
   g_return_val_if_fail (inbuf != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (outbuf_ptr != NULL, GST_FLOW_ERROR);
 
-  meta = gst_buffer_get_vaapi_video_meta (inbuf);
-  if (meta) {
-    *outbuf_ptr = gst_buffer_ref (inbuf);
-    return GST_FLOW_OK;
-  }
+  if (!is_dma_buffer (inbuf)) {
+    meta = gst_buffer_get_vaapi_video_meta (inbuf);
+    if (meta) {
+      *outbuf_ptr = gst_buffer_ref (inbuf);
+      return GST_FLOW_OK;
+    }
 
-  if (!plugin->sinkpad_caps_is_raw)
-    goto error_invalid_buffer;
+    if (!plugin->sinkpad_caps_is_raw)
+      goto error_invalid_buffer;
+  }
 
   if (!plugin->sinkpad_buffer_pool)
     goto error_no_pool;
