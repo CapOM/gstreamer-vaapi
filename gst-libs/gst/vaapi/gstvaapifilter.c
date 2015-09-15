@@ -1080,8 +1080,10 @@ gst_vaapi_filter_init (GstVaapiFilter * filter, GstVaapiDisplay * display)
   if (!filter->backward_references)
     return FALSE;
 
-  if (!GST_VAAPI_DISPLAY_HAS_VPP (display))
+  if (!GST_VAAPI_DISPLAY_HAS_VPP (display)) {
+    GST_WARNING ("Cannot create VPP filter");
     return FALSE;
+  }
 
   va_status = vaCreateConfig (filter->va_display, VAProfileNone,
       VAEntrypointVideoProc, NULL, 0, &filter->va_config);
