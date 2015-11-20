@@ -92,6 +92,9 @@ gst_vaapi_create_display (GstVaapiDisplayType display_type,
   GstVaapiDisplay *display = NULL;
   const DisplayMap *m;
 
+  if (getenv("LIBVA_DRIVER_NAME") && g_strcmp0 (getenv("LIBVA_DRIVER_NAME"), "gallium") == 0)
+      display_type = GST_VAAPI_DISPLAY_TYPE_DRM;
+
   for (m = g_display_map; m->type_str != NULL; m++) {
     if (display_type != GST_VAAPI_DISPLAY_TYPE_ANY && display_type != m->type)
       continue;

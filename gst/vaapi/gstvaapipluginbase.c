@@ -841,6 +841,7 @@ gst_vaapi_plugin_base_set_gl_context (GstVaapiPluginBase * plugin,
       break;
 #endif
 #if USE_EGL
+      AAA // must use configure --disable-egl if using DRM
     case GST_GL_PLATFORM_EGL:
       display_type = GST_VAAPI_DISPLAY_TYPE_EGL;
       break;
