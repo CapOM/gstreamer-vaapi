@@ -103,6 +103,7 @@ static const char gst_vaapidecode_sink_caps_str[] =
     ;
 
 static const char gst_vaapidecode_src_caps_str[] =
+    GST_VAAPI_MAKE_DMABUF_CAPS ";"
     GST_VAAPI_MAKE_SURFACE_CAPS ";"
     GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS ";"
     GST_VIDEO_CAPS_MAKE("{ I420, YV12, NV12 }");
