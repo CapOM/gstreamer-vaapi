@@ -32,6 +32,8 @@
 #include <gst/vaapi/gstvaapidisplay.h>
 
 #ifdef USE_GST_GL_HELPERS
+# include <gst/gl/egl/gstglcontext_egl.h>
+# include <gst/gl/gstglapi.h>
 # include <gst/gl/gstglcontext.h>
 #endif
 
@@ -138,6 +140,8 @@ struct _GstVaapiPluginBase
   GstObject *gl_context;
 
   GstCaps *allowed_raw_caps;
+
+  gboolean can_try_dmabuf;
 };
 
 struct _GstVaapiPluginBaseClass

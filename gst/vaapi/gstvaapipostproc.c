@@ -66,7 +66,8 @@ static const char gst_vaapipostproc_src_caps_str[] =
   GST_CAPS_INTERLACED_FALSE "; "
   GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS "; "
   GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL) ", "
-  GST_CAPS_INTERLACED_FALSE;
+  GST_CAPS_INTERLACED_FALSE "; "
+  GST_VAAPI_MAKE_DMABUF_CAPS;
 /* *INDENT-ON* */
 
 /* *INDENT-OFF* */
@@ -257,6 +258,8 @@ gst_vaapipostproc_create (GstVaapiPostproc * postproc)
   if (!gst_vaapipostproc_ensure_display (postproc))
     return FALSE;
 
+  GST_VAAPI_PLUGIN_BASE (postproc)->can_try_dmabuf = TRUE;
+
   postproc->use_vpp = FALSE;
   postproc->has_vpp = gst_vaapipostproc_ensure_filter (postproc);
   return TRUE;
@@ -298,6 +301,8 @@ gst_vaapipostproc_start (GstBaseTransform * trans)
 {
   GstVaapiPostproc *const postproc = GST_VAAPIPOSTPROC (trans);
 
+  postproc->rejected_caps = gst_caps_new_empty ();
+
   ds_reset (&postproc->deinterlace_state);
   if (!gst_vaapi_plugin_base_open (GST_VAAPI_PLUGIN_BASE (postproc)))
     return FALSE;
@@ -310,6 +315,8 @@ static gboolean
 gst_vaapipostproc_stop (GstBaseTransform * trans)
 {
   GstVaapiPostproc *const postproc = GST_VAAPIPOSTPROC (trans);
+
+  gst_caps_unref (postproc->rejected_caps);
 
   ds_reset (&postproc->deinterlace_state);
   gst_vaapi_plugin_base_close (GST_VAAPI_PLUGIN_BASE (postproc));
@@ -1050,6 +1057,43 @@ find_best_size (GstVaapiPostproc * postproc, GstVideoInfo * vip,
 }
 
 static GstCaps *
+remove_rejected_caps (GstCaps * caps, GstCaps * rejected_caps)
+{
+  GstCaps *res = gst_caps_new_empty ();
+  gint n1 = 0;
+  gint n2 = 0;
+  gint i = 0;
+  gint j = 0;
+  GstStructure *st = NULL;
+  GstStructure *rejected_st = NULL;
+
+  n1 = gst_caps_get_size (caps);
+  n2 = gst_caps_get_size (rejected_caps);
+
+  for (i = 0; i < n1; i++) {
+    gboolean found = FALSE;
+    GstCapsFeatures *features = gst_caps_get_features (caps, i);
+    st = gst_caps_get_structure (caps, i);
+    for (j = 0; j < n2; j++) {
+      GstCapsFeatures *rejected_features =
+          gst_caps_get_features (rejected_caps, j);
+      rejected_st = gst_caps_get_structure (rejected_caps, j);
+      if (gst_caps_features_is_equal (features, rejected_features)
+          && gst_structure_is_subset (rejected_st, st)) {
+        found = TRUE;
+        break;
+      }
+    }
+    if (!found) {
+      gst_caps_append_structure (res, gst_structure_copy (st));
+      gst_caps_set_features (res, gst_caps_get_size (res) - 1,
+          gst_caps_features_copy (features));
+    }
+  }
+  return res;
+}
+
+static GstCaps *
 gst_vaapipostproc_transform_caps_impl (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps)
 {
@@ -1103,27 +1147,39 @@ gst_vaapipostproc_transform_caps_impl (GstBaseTransform * trans,
    * if the user didn't explicitly ask for colorspace conversion.
    * Use a filter caps which contain all raw video formats, (excluding
    * GST_VIDEO_FORMAT_ENCODED) */
-  if (postproc->format != DEFAULT_FORMAT)
+  if (postproc->format != DEFAULT_FORMAT) {
     out_format = postproc->format;
-  else {
-    GstCaps *peer_caps;
+  } else {
+    GstCaps *tmp = NULL;
+    GstCaps *peer_caps = NULL;
     GstVideoInfo peer_vi;
+
     peer_caps =
         gst_pad_peer_query_caps (GST_BASE_TRANSFORM_SRC_PAD (trans),
         postproc->allowed_srcpad_caps);
     if (gst_caps_is_any (peer_caps) || gst_caps_is_empty (peer_caps))
       return peer_caps;
+
+    if (!gst_caps_is_empty (postproc->rejected_caps)) {
+      tmp = remove_rejected_caps (peer_caps, postproc->rejected_caps);
+      if (gst_caps_is_empty (tmp)) {
+        GST_VAAPI_PLUGIN_BASE (postproc)->can_try_dmabuf = FALSE;
+        gst_caps_unref (tmp);
+      } else
+        gst_caps_replace (&peer_caps, tmp);
+    }
     if (!gst_caps_is_fixed (peer_caps))
       peer_caps = gst_caps_fixate (peer_caps);
     gst_video_info_from_caps (&peer_vi, peer_caps);
     out_format = GST_VIDEO_INFO_FORMAT (&peer_vi);
-    if (peer_caps)
-      gst_caps_unref (peer_caps);
+
+    gst_caps_replace (&postproc->allowed_srcpad_caps, peer_caps);
   }
 
   feature =
       gst_vaapi_find_preferred_caps_feature (GST_BASE_TRANSFORM_SRC_PAD (trans),
-      out_format, &out_format);
+      out_format, postproc->allowed_srcpad_caps, &out_format);
+
   gst_video_info_change_format (&vi, out_format, width, height);
 
   out_caps = gst_video_info_to_caps (&vi);
@@ -1340,8 +1396,22 @@ gst_vaapipostproc_propose_allocation (GstBaseTransform * trans,
 static gboolean
 gst_vaapipostproc_decide_allocation (GstBaseTransform * trans, GstQuery * query)
 {
-  return gst_vaapi_plugin_base_decide_allocation (GST_VAAPI_PLUGIN_BASE (trans),
+  GstVaapiPostproc *const postproc = GST_VAAPIPOSTPROC (trans);
+  gboolean ret = FALSE;
+
+  ret = gst_vaapi_plugin_base_decide_allocation (GST_VAAPI_PLUGIN_BASE (trans),
       query, 0);
+
+  if (!ret) {
+    GstCaps *rejected_caps = NULL;
+    gst_query_parse_allocation (query, &rejected_caps, NULL);
+    postproc->rejected_caps =
+        gst_caps_merge (postproc->rejected_caps, rejected_caps);
+
+    postproc->format = DEFAULT_FORMAT;
+  }
+
+  return ret;
 }
 
 static void

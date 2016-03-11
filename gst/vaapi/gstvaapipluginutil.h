@@ -67,6 +67,7 @@ typedef enum
   GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY,
   GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META,
   GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE,
+  GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF,
 } GstVaapiCapsFeature;
 
 G_GNUC_INTERNAL
@@ -85,7 +86,7 @@ gst_vaapi_video_format_new_template_caps_with_features (GstVideoFormat format,
 G_GNUC_INTERNAL
 GstVaapiCapsFeature
 gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstVideoFormat format,
-    GstVideoFormat * out_format_ptr);
+    GstCaps * filter, GstVideoFormat * out_format_ptr);
 
 G_GNUC_INTERNAL
 const gchar *
@@ -101,6 +102,10 @@ gst_vaapi_caps_feature_contains (const GstCaps * caps,
     "interlace-mode = (string){ progressive, interleaved, mixed }"
 # define GST_CAPS_INTERLACED_FALSE \
     "interlace-mode = (string)progressive"
+
+#define GST_VAAPI_MAKE_DMABUF_CAPS					\
+    GST_VIDEO_CAPS_MAKE_WITH_FEATURES(					\
+        GST_CAPS_FEATURE_MEMORY_DMABUF, "{ RGBx, BGRx}")
 
 #define GST_VAAPI_MAKE_SURFACE_CAPS					\
     GST_VIDEO_CAPS_MAKE_WITH_FEATURES(					\

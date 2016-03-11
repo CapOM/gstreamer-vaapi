@@ -441,20 +441,26 @@ new_gl_texture_upload_meta_caps (void)
 
 GstVaapiCapsFeature
 gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstVideoFormat format,
-    GstVideoFormat * out_format_ptr)
+    GstCaps * filter, GstVideoFormat * out_format_ptr)
 {
   GstVaapiCapsFeature feature = GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY;
   guint i, num_structures;
   GstCaps *caps = NULL;
   GstCaps *gl_texture_upload_caps = NULL;
   GstCaps *sysmem_caps = NULL;
+  GstCaps *dmabuf_caps = NULL;
   GstCaps *vaapi_caps = NULL;
   GstCaps *out_caps, *templ;
   GstVideoFormat out_format;
 
-  templ = gst_pad_get_pad_template_caps (pad);
-  out_caps = gst_pad_peer_query_caps (pad, templ);
-  gst_caps_unref (templ);
+  if (filter) {
+    out_caps = gst_pad_peer_query_caps (pad, filter);
+  } else {
+    templ = gst_pad_get_pad_template_caps (pad);
+    out_caps = gst_pad_peer_query_caps (pad, templ);
+    gst_caps_unref (templ);
+  }
+
   if (!out_caps) {
     feature = GST_VAAPI_CAPS_FEATURE_NOT_NEGOTIATED;
     goto cleanup;
@@ -471,6 +477,12 @@ gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstVideoFormat format,
       gst_vaapi_video_format_new_template_caps_with_features (out_format,
       GST_CAPS_FEATURE_MEMORY_VAAPI_SURFACE);
   if (!vaapi_caps)
+    goto cleanup;
+
+  dmabuf_caps =
+      gst_vaapi_video_format_new_template_caps_with_features (out_format,
+      GST_CAPS_FEATURE_MEMORY_DMABUF);
+  if (!dmabuf_caps)
     goto cleanup;
 
   sysmem_caps =
@@ -499,6 +511,9 @@ gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstVideoFormat format,
     else if (gst_caps_can_intersect (caps, gl_texture_upload_caps) &&
         feature < GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META)
       feature = GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META;
+    else if (gst_caps_can_intersect (caps, dmabuf_caps) &&
+        feature < GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF)
+      feature = GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF;
     else if (gst_caps_can_intersect (caps, sysmem_caps) &&
         feature < GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY)
       feature = GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY;
@@ -558,6 +573,9 @@ gst_vaapi_caps_feature_to_string (GstVaapiCapsFeature feature)
       break;
     case GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE:
       str = GST_CAPS_FEATURE_MEMORY_VAAPI_SURFACE;
+      break;
+    case GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF:
+      str = GST_CAPS_FEATURE_MEMORY_DMABUF;
       break;
     default:
       str = NULL;

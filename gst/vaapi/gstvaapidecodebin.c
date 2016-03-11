@@ -112,7 +112,8 @@ static const char gst_vaapi_decode_bin_src_caps_str[] =
   GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS ", "
   GST_CAPS_INTERLACED_FALSE "; "
   GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL) ", "
-  GST_CAPS_INTERLACED_FALSE;
+  GST_CAPS_INTERLACED_FALSE "; "
+  GST_VAAPI_MAKE_DMABUF_CAPS;
 /* *INDENT-ON* */
 
 static GstStaticPadTemplate gst_vaapi_decode_bin_sink_factory =

@@ -231,6 +231,7 @@ gst_vaapi_plugin_base_finalize (GstVaapiPluginBase * plugin)
 gboolean
 gst_vaapi_plugin_base_open (GstVaapiPluginBase * plugin)
 {
+  plugin->can_try_dmabuf = FALSE;
   return TRUE;
 }
 
@@ -244,6 +245,8 @@ gst_vaapi_plugin_base_open (GstVaapiPluginBase * plugin)
 void
 gst_vaapi_plugin_base_close (GstVaapiPluginBase * plugin)
 {
+  plugin->can_try_dmabuf = FALSE;
+
   gst_vaapi_display_replace (&plugin->display, NULL);
   gst_object_replace (&plugin->gl_context, NULL);
 
@@ -623,7 +626,7 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
   if (!feature)
     feature =
         gst_vaapi_find_preferred_caps_feature (plugin->srcpad,
-        GST_VIDEO_FORMAT_ENCODED, NULL);
+        GST_VIDEO_FORMAT_ENCODED, NULL, NULL);
 
   has_video_meta = gst_query_find_allocation_meta (query,
       GST_VIDEO_META_API_TYPE, NULL);
@@ -631,18 +634,31 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
 #if (USE_GLX || USE_EGL)
   has_texture_upload_meta = gst_query_find_allocation_meta (query,
       GST_VIDEO_GL_TEXTURE_UPLOAD_META_API_TYPE, &idx) &&
-      (feature == GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META);
+      (feature == GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META) &&
+      gst_caps_features_contains (gst_caps_get_features (caps, 0),
+      GST_CAPS_FEATURE_META_GST_VIDEO_GL_TEXTURE_UPLOAD_META);
 
 #if USE_GST_GL_HELPERS
   if (has_texture_upload_meta) {
     const GstStructure *params;
-    GstObject *gl_context;
+    GstGLContext *gl_context;
 
     gst_query_parse_nth_allocation_meta (query, idx, &params);
     if (params) {
       if (gst_structure_get (params, "gst.gl.GstGLContext", GST_GL_TYPE_CONTEXT,
               &gl_context, NULL) && gl_context) {
-        gst_vaapi_plugin_base_set_gl_context (plugin, gl_context);
+        if (plugin->can_try_dmabuf
+            && gst_gl_context_get_gl_platform (gl_context) ==
+            GST_GL_PLATFORM_EGL
+            && !(gst_gl_context_get_gl_api (gl_context) & GST_GL_API_GLES1)
+            && GST_IS_GL_CONTEXT_EGL (gl_context)
+            && gst_gl_check_extension ("EGL_EXT_image_dma_buf_import",
+                GST_GL_CONTEXT_EGL (gl_context)->egl_exts)) {
+          gst_object_unref (gl_context);
+          return FALSE;
+        }
+
+        gst_vaapi_plugin_base_set_gl_context (plugin, GST_OBJECT (gl_context));
         gst_object_unref (gl_context);
       }
     }
@@ -681,6 +697,8 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
   /* GstVaapiVideoMeta is mandatory, and this implies VA surface memory */
   if (!pool || !gst_buffer_pool_has_option (pool,
           GST_BUFFER_POOL_OPTION_VAAPI_VIDEO_META)) {
+    gboolean use_dmabuf_memory = FALSE;
+
     GST_INFO_OBJECT (plugin, "%s. Making a new pool", pool == NULL ? "No pool" :
         "Pool hasn't GstVaapiVideoMeta");
     if (pool)
@@ -689,10 +707,37 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
     if (!pool)
       goto error_create_pool;
 
+    if (plugin->can_try_dmabuf
+        && g_strcmp0 (gst_structure_get_name (gst_caps_get_structure (caps, 0)),
+            "video/x-raw") == 0) {
+      const GValue *list_format_val = NULL;
+      const GValue *format_val = NULL;
+      GstCaps *dmabuf_caps = gst_caps_from_string (GST_VAAPI_MAKE_DMABUF_CAPS);
+
+      list_format_val =
+          gst_structure_get_value (gst_caps_get_structure (dmabuf_caps, 0),
+          "format");
+      format_val =
+          gst_structure_get_value (gst_caps_get_structure (caps, 0), "format");
+
+      use_dmabuf_memory = gst_value_is_subset (format_val, list_format_val)
+          && gst_caps_features_contains (gst_caps_get_features (caps, 0),
+          GST_CAPS_FEATURE_MEMORY_SYSTEM_MEMORY);
+      gst_caps_unref (dmabuf_caps);
+    }
+
+    plugin->can_try_dmabuf = use_dmabuf_memory;
+
     config = gst_buffer_pool_get_config (pool);
     gst_buffer_pool_config_set_params (config, caps, size, min, max);
     gst_buffer_pool_config_add_option (config,
         GST_BUFFER_POOL_OPTION_VAAPI_VIDEO_META);
+    if (plugin->can_try_dmabuf ||
+        gst_caps_features_contains (gst_caps_get_features (caps, 0),
+            GST_CAPS_FEATURE_MEMORY_DMABUF)) {
+      gst_buffer_pool_config_add_option (config,
+          GST_BUFFER_POOL_OPTION_DMABUF_MEMORY);
+    }
     if (!gst_buffer_pool_set_config (pool, config))
       goto config_failed;
   }
@@ -745,8 +790,22 @@ error_create_pool:
   }
 config_failed:
   {
-    if (pool)
+    if (pool) {
+      GstAllocator *allocator = NULL;
+      GstStructure *config = gst_buffer_pool_get_config (pool);
+      gboolean ret =
+          gst_buffer_pool_config_get_allocator (config, &allocator, NULL);
+      if (ret && !g_strcmp0 (allocator->mem_type, GST_ALLOCATOR_DMABUF)
+          && !gst_caps_features_contains (gst_caps_get_features (caps, 0),
+              GST_CAPS_FEATURE_MEMORY_DMABUF)) {
+        GST_DEBUG ("fail to use dmabuf without DMABuf caps feature");
+        gst_structure_free (config);
+        gst_object_unref (pool);
+        return FALSE;
+      }
+      gst_structure_free (config);
       gst_object_unref (pool);
+    }
     GST_ELEMENT_ERROR (plugin, RESOURCE, SETTINGS,
         ("Failed to configure the buffer pool"),
         ("Configuration is most likely invalid, please report this issue."));

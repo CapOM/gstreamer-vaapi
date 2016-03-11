@@ -105,7 +105,8 @@ static const char gst_vaapidecode_sink_caps_str[] =
 static const char gst_vaapidecode_src_caps_str[] =
     GST_VAAPI_MAKE_SURFACE_CAPS ";"
     GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS ";"
-    GST_VIDEO_CAPS_MAKE("{ I420, YV12, NV12 }");
+    GST_VIDEO_CAPS_MAKE("{ I420, YV12, NV12 }") ";"
+    GST_VAAPI_MAKE_DMABUF_CAPS;
 
 static GstStaticPadTemplate gst_vaapidecode_sink_factory =
     GST_STATIC_PAD_TEMPLATE(
@@ -220,7 +221,7 @@ gst_vaapidecode_update_src_caps (GstVaapiDecode * decode)
 
   feature =
       gst_vaapi_find_preferred_caps_feature (GST_VIDEO_DECODER_SRC_PAD (vdec),
-      GST_VIDEO_INFO_FORMAT (&ref_state->info), &format);
+      GST_VIDEO_INFO_FORMAT (&ref_state->info), NULL, &format);
 
   if (feature == GST_VAAPI_CAPS_FEATURE_NOT_NEGOTIATED)
     return FALSE;

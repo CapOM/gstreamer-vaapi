@@ -149,6 +149,9 @@ struct _GstVaapiPostproc
   GstCaps *allowed_srcpad_caps;
   GstVideoInfo srcpad_info;
 
+  /* Can be expanded between start/stop and reseted on stop */
+  GstCaps *rejected_caps;
+
   /* Deinterlacing */
   GstVaapiDeinterlaceMode deinterlace_mode;
   GstVaapiDeinterlaceMethod deinterlace_method;

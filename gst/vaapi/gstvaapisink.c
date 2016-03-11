@@ -72,7 +72,8 @@ static const char gst_vaapisink_sink_caps_str[] =
     GST_VIDEO_CAPS_MAKE_WITH_FEATURES (
         GST_CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION,
         GST_VIDEO_FORMATS_ALL) ";"
-    GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL);
+    GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL) ";"
+    GST_VAAPI_MAKE_DMABUF_CAPS;
 /* *INDENT-ON* */
 
 static GstStaticPadTemplate gst_vaapisink_sink_factory =
