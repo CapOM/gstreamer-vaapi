@@ -487,6 +487,7 @@ gst_vaapi_find_preferred_caps_feature (GstPad * pad, GstCaps * allowed_caps,
   GstCaps *out_caps, *caps = NULL;
   static const guint feature_list[] = { GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE,
     GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META,
+    GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF,
     GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY,
   };
 
@@ -575,6 +576,9 @@ gst_vaapi_caps_feature_to_string (GstVaapiCapsFeature feature)
       break;
     case GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE:
       str = GST_CAPS_FEATURE_MEMORY_VAAPI_SURFACE;
+      break;
+    case GST_VAAPI_CAPS_FEATURE_VAAPI_DMABUF:
+      str = GST_CAPS_FEATURE_MEMORY_DMABUF;
       break;
     default:
       str = NULL;

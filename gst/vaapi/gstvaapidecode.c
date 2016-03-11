@@ -132,7 +132,8 @@ static const char gst_vaapidecode_src_caps_str[] =
 #if (USE_GLX || USE_EGL)
     GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS ";"
 #endif
-    GST_VIDEO_CAPS_MAKE("{ NV12, I420, YV12, P010_10LE }");
+    GST_VIDEO_CAPS_MAKE("{ NV12, I420, YV12, P010_10LE }") ";"
+    GST_VAAPI_MAKE_DMABUF_CAPS;
 
 static GstStaticPadTemplate gst_vaapidecode_src_factory =
     GST_STATIC_PAD_TEMPLATE(

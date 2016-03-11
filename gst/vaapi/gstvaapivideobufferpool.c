@@ -140,8 +140,9 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
   GstVideoInfo *const cur_vip = &priv->video_info[priv->video_info_index];
   GstVideoInfo *const new_vip = &priv->video_info[!priv->video_info_index];
   GstVideoAlignment align;
-  GstAllocator *allocator;
-  gboolean changed_caps, use_dmabuf_memory;
+  gboolean changed_caps = FALSE;
+  gboolean use_dmabuf_memory = FALSE;
+  GstAllocator *allocator = NULL;
 
   if (!gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL))
     goto error_invalid_config;
@@ -150,6 +151,7 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
 
   use_dmabuf_memory = gst_buffer_pool_config_has_option (config,
       GST_BUFFER_POOL_OPTION_DMABUF_MEMORY);
+
   if (priv->use_dmabuf_memory != use_dmabuf_memory) {
     priv->use_dmabuf_memory = use_dmabuf_memory;
     g_clear_object (&priv->allocator);
@@ -169,9 +171,45 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
       flags |= GST_VAAPI_SURFACE_ALLOC_FLAG_LINEAR_STORAGE;
       allocator =
           gst_vaapi_dmabuf_allocator_new (priv->display, new_vip, flags);
+
+      if (allocator)
+        gst_buffer_pool_config_set_allocator (config, allocator, NULL);
+
+      if (allocator
+          && !gst_caps_features_contains (gst_caps_get_features (caps, 0),
+              GST_CAPS_FEATURE_MEMORY_DMABUF)) {
+        GstVaapiVideoMeta *meta = NULL;
+        GstMemory *mem = NULL;
+        GstMapInfo info;
+
+        meta = gst_vaapi_video_meta_new (priv->display);
+        if (!meta)
+          goto error_create_meta;
+
+        mem = gst_vaapi_dmabuf_memory_new (allocator, meta);
+        if (!mem) {
+          gst_vaapi_video_meta_unref (meta);
+          goto error_create_mem;
+        }
+
+        if (!gst_memory_map (mem, &info, GST_MAP_READWRITE) || info.size == 0) {
+          GST_DEBUG ("failed to map dma buffer or 0 size");
+          gst_buffer_pool_config_set_allocator (config, allocator, NULL);
+          gst_memory_unref (mem);
+          gst_vaapi_video_meta_unref (meta);
+          gst_object_unref (allocator);
+          allocator = NULL;
+          return FALSE;
+        }
+
+        GST_DEBUG ("suceeded to map dma buffer");
+        gst_memory_unmap (mem, &info);
+        gst_memory_unref (mem);
+      }
     } else {
       allocator = gst_vaapi_video_allocator_new (priv->display, new_vip, 0);
     }
+
     if (!allocator)
       goto error_create_allocator;
     gst_object_replace ((GstObject **) & priv->allocator,
@@ -199,7 +237,8 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
     gst_buffer_pool_config_set_video_alignment (config, &align);
   }
 
-  priv->has_texture_upload_meta = !priv->use_dmabuf_memory && gst_buffer_pool_config_has_option (config,
+  priv->has_texture_upload_meta = !priv->use_dmabuf_memory
+      && gst_buffer_pool_config_has_option (config,
       GST_BUFFER_POOL_OPTION_VIDEO_GL_TEXTURE_UPLOAD_META);
 
   return
@@ -230,6 +269,16 @@ error_create_allocator_info:
 error_no_vaapi_video_meta_option:
   {
     GST_ERROR ("no GstVaapiVideoMeta option");
+    return FALSE;
+  }
+error_create_meta:
+  {
+    GST_ERROR ("failed to allocate vaapi video meta");
+    return FALSE;
+  }
+error_create_mem:
+  {
+    GST_ERROR ("failed to create gst_vaapi_dmabuf_memory_new");
     return FALSE;
   }
 }
