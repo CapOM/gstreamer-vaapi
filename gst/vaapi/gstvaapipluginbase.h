@@ -101,6 +101,8 @@ typedef struct _GstVaapiPluginBaseClass GstVaapiPluginBaseClass;
 #define GST_VAAPI_PLUGIN_BASE_DISPLAY_REPLACE(plugin, new_display) \
   (gst_vaapi_display_replace(&GST_VAAPI_PLUGIN_BASE_DISPLAY(plugin), \
        (new_display)))
+#define GST_VAAPI_PLUGIN_BASE_CAN_TRY_DMABUF(plugin) \
+  (GST_VAAPI_PLUGIN_BASE(plugin)->can_try_dmabuf)
 
 #define GST_VAAPI_PLUGIN_BASE_DEFINE_VMETHODS(parent_class) \
   GST_VAAPI_PLUGIN_BASE_DEFINE_SET_CONTEXT(parent_class) \
@@ -177,6 +179,7 @@ struct _GstVaapiPluginBase
   GstCaps *allowed_raw_caps;
   GstAllocator *sinkpad_allocator;
   GstAllocator *srcpad_allocator;
+  gboolean can_try_dmabuf;
 };
 
 struct _GstVaapiPluginBaseClass

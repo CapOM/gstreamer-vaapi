@@ -31,6 +31,10 @@
 #include "gstvaapivideometa.h"
 #include "gstvaapivideobufferpool.h"
 
+#ifdef USE_GST_GL_HELPERS
+# include <gst/gl/egl/gstglcontext_egl.h>
+#endif
+
 /* Default debug category is from the subclass */
 #define GST_CAT_DEFAULT (plugin->debug_category)
 
@@ -887,6 +891,11 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
 
   g_clear_object (&plugin->srcpad_buffer_pool);
   plugin->srcpad_buffer_pool = pool;
+
+  /* use dmabuf allocator if possible */
+  if (gst_vaapi_caps_feature_contains (caps,
+          GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY) && plugin->can_try_dmabuf)
+    set_dmabuf_allocator (plugin, plugin->srcpad_buffer_pool, caps);
   return TRUE;
 
   /* ERRORS */
@@ -1069,10 +1078,17 @@ gst_vaapi_plugin_base_set_gl_context (GstVaapiPluginBase * plugin,
       display_type = GST_VAAPI_DISPLAY_TYPE_GLX;
       break;
 #endif
-#if USE_EGL
     case GST_GL_PLATFORM_EGL:
-      display_type = GST_VAAPI_DISPLAY_TYPE_EGL;
-      break;
+      plugin->can_try_dmabuf =
+          (!(gst_gl_context_get_gl_api (gl_context) & GST_GL_API_GLES1)
+          && GST_IS_GL_CONTEXT_EGL (gl_context)
+          && gst_gl_check_extension ("EGL_EXT_image_dma_buf_import",
+              GST_GL_CONTEXT_EGL (gl_context)->egl_exts));
+#if USE_EGL
+      if (!plugin->can_try_dmabuf) {
+        display_type = GST_VAAPI_DISPLAY_TYPE_EGL;
+        break;
+      }
 #endif
     default:
       display_type = plugin->display_type;
