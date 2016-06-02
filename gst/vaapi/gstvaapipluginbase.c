@@ -31,6 +31,10 @@
 #include "gstvaapivideometa.h"
 #include "gstvaapivideobufferpool.h"
 
+#ifdef USE_GST_GL_HELPERS
+# include <gst/gl/egl/gstglcontext_egl.h>
+#endif
+
 /* Default debug category is from the subclass */
 #define GST_CAT_DEFAULT (plugin->debug_category)
 
@@ -1024,16 +1028,21 @@ gst_vaapi_plugin_base_set_gl_context (GstVaapiPluginBase * plugin,
   if (plugin->gl_context == object)
     return;
 
-  gst_object_replace (&plugin->gl_context, object);
-
   switch (gst_gl_context_get_gl_platform (gl_context)) {
 #if USE_GLX
     case GST_GL_PLATFORM_GLX:
       display_type = GST_VAAPI_DISPLAY_TYPE_GLX;
       break;
 #endif
-#if USE_EGL
     case GST_GL_PLATFORM_EGL:
+#if VA_CHECK_VERSION (0,36,0)
+      plugin->srcpad_can_dmabuf =
+          (!(gst_gl_context_get_gl_api (gl_context) & GST_GL_API_GLES1)
+          && GST_IS_GL_CONTEXT_EGL (gl_context)
+          && gst_gl_check_extension ("EGL_EXT_image_dma_buf_import",
+              GST_GL_CONTEXT_EGL (gl_context)->egl_exts));
+#endif
+#if USE_EGL
       display_type = GST_VAAPI_DISPLAY_TYPE_EGL;
       break;
 #endif
@@ -1041,6 +1050,7 @@ gst_vaapi_plugin_base_set_gl_context (GstVaapiPluginBase * plugin,
       display_type = plugin->display_type;
       break;
   }
+  gst_object_replace (&plugin->gl_context, object);
   GST_INFO_OBJECT (plugin, "GL context: %" GST_PTR_FORMAT, plugin->gl_context);
   gst_vaapi_plugin_base_set_display_type (plugin, display_type);
 #endif
