@@ -129,6 +129,7 @@ static const char gst_vaapidecode_sink_caps_str[] =
 
 static const char gst_vaapidecode_src_caps_str[] =
     GST_VAAPI_MAKE_SURFACE_CAPS ";"
+    GST_VAAPI_MAKE_DMABUF_CAPS ";"
 #if (USE_GLX || USE_EGL)
     GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS ";"
 #endif

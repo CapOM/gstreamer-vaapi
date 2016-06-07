@@ -893,8 +893,9 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
   plugin->srcpad_buffer_pool = pool;
 
   /* use dmabuf allocator if possible */
-  if (gst_vaapi_caps_feature_contains (caps,
-          GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY) && plugin->can_try_dmabuf)
+  if (gst_vaapi_caps_feature_contains (caps, GST_VAAPI_CAPS_FEATURE_DMABUF) ||
+      (gst_vaapi_caps_feature_contains (caps,
+              GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY) && plugin->can_try_dmabuf))
     set_dmabuf_allocator (plugin, plugin->srcpad_buffer_pool, caps);
   return TRUE;
 
