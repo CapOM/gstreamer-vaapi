@@ -64,6 +64,7 @@ static const char gst_vaapipostproc_sink_caps_str[] =
 static const char gst_vaapipostproc_src_caps_str[] =
   GST_VAAPI_MAKE_SURFACE_CAPS ", "
   GST_CAPS_INTERLACED_FALSE "; "
+  GST_VAAPI_MAKE_DMABUF_CAPS "; "
 #if (USE_GLX || USE_EGL)
   GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS "; "
 #endif
