@@ -150,8 +150,19 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
   if (!gst_video_info_from_caps (new_vip, caps))
     goto error_invalid_caps;
 
-  use_dmabuf_memory = gst_buffer_pool_config_has_option (config,
-      GST_BUFFER_POOL_OPTION_DMABUF_MEMORY);
+  use_dmabuf_memory = FALSE;
+
+  if (!use_dmabuf_memory) {
+    GstCapsFeatures *dmabuf_features =
+        gst_caps_features_from_string (GST_CAPS_FEATURE_MEMORY_DMABUF);
+
+    use_dmabuf_memory =
+        gst_caps_features_is_equal (gst_caps_get_features (caps, 0),
+        dmabuf_features);
+
+    gst_caps_features_free (dmabuf_features);
+  }
+
   if (priv->use_dmabuf_memory != use_dmabuf_memory) {
     priv->use_dmabuf_memory = use_dmabuf_memory;
     g_clear_object (&priv->allocator);
