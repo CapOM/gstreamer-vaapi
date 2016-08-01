@@ -146,7 +146,9 @@ struct _GstVaapiPluginBase
   GstCaps *allowed_raw_caps;
   GstAllocator *sinkpad_allocator;
   GstAllocator *srcpad_allocator;
+
   gboolean srcpad_can_dmabuf;
+  GstAllocator *dmabuf_allocator;
 };
 
 struct _GstVaapiPluginBaseClass
@@ -242,6 +244,11 @@ gst_vaapi_plugin_base_set_gl_context (GstVaapiPluginBase * plugin,
 G_GNUC_INTERNAL
 GstCaps *
 gst_vaapi_plugin_base_get_allowed_raw_caps (GstVaapiPluginBase * plugin);
+
+G_GNUC_INTERNAL
+gboolean
+gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
+    GstBuffer ** outbuf);
 
 G_END_DECLS
 
