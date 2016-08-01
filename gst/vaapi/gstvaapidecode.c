@@ -262,11 +262,16 @@ gst_vaapidecode_ensure_allowed_srcpad_caps (GstVaapiDecode * decode)
     return FALSE;
 
   /* Create VA caps */
-  out_caps = gst_caps_from_string (GST_VAAPI_MAKE_SURFACE_CAPS ";"
-      GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS);
+  out_caps = gst_caps_from_string (GST_VAAPI_MAKE_SURFACE_CAPS);
   if (!out_caps) {
     GST_WARNING_OBJECT (decode, "failed to create VA/GL source caps");
     return FALSE;
+  }
+
+  if (!GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode)) {
+    out_caps = gst_caps_make_writable (out_caps);
+    gst_caps_append (out_caps,
+        gst_caps_from_string (GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS));
   }
 
   raw_caps = gst_vaapi_plugin_base_get_allowed_raw_caps
@@ -606,6 +611,8 @@ gst_vaapidecode_push_decoded_frame (GstVideoDecoder * vdec,
     if (decode->has_texture_upload_meta)
       gst_buffer_ensure_texture_upload_meta (out_frame->output_buffer);
 #endif
+    gst_vaapi_plugin_base_export_dma_buffer (GST_VAAPI_PLUGIN_BASE (vdec),
+        &out_frame->output_buffer);
   }
 
   if (decode->in_segment.rate < 0.0

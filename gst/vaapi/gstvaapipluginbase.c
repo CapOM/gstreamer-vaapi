@@ -305,6 +305,7 @@ gst_vaapi_plugin_base_close (GstVaapiPluginBase * plugin)
 
   g_clear_object (&plugin->sinkpad_allocator);
   g_clear_object (&plugin->srcpad_allocator);
+  g_clear_object (&plugin->dmabuf_allocator);
 
   gst_caps_replace (&plugin->srcpad_caps, NULL);
   gst_video_info_init (&plugin->srcpad_info);
@@ -1133,4 +1134,67 @@ gst_vaapi_plugin_base_get_allowed_raw_caps (GstVaapiPluginBase * plugin)
   if (!ensure_allowed_raw_caps (plugin))
     return NULL;
   return plugin->allowed_raw_caps;
+}
+
+/**
+ * gst_vaapi_plugin_base_prepare_dma_buffer:
+ * @plugin: a #GstVaapiPluginBase
+ * @outbuf: (inout): the #GstBuffer to export as dmabuf buffer
+ *
+ * Exports the @outbuf to a new allocated dmabuf-based buffer, and it
+ * is associated to it.
+ *
+ * Returns: %TRUE if buffer is exported and replaced successfully.
+ **/
+gboolean
+gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
+    GstBuffer ** outbuf)
+{
+  GstVaapiVideoMeta *vmeta;
+  GstVaapiSurface *surface;
+  GstVaapiBufferProxy *dmabuf_proxy;
+  gint dmabuf_fd;
+  GstMemory *mem;
+  GstBuffer *buffer;
+
+  g_return_val_if_fail (outbuf && GST_IS_BUFFER (*outbuf), FALSE);
+
+  if (!plugin->srcpad_can_dmabuf)
+    return TRUE;
+
+  vmeta = gst_buffer_get_vaapi_video_meta (*outbuf);
+  if (!vmeta)
+    return FALSE;
+  surface = gst_vaapi_video_meta_get_surface (vmeta);
+  if (!surface)
+    return FALSE;
+  dmabuf_proxy = gst_vaapi_surface_get_dma_buf_handle (surface);
+  dmabuf_fd = gst_vaapi_buffer_proxy_get_handle (dmabuf_proxy);
+  if (dmabuf_fd < 0)
+    goto error_dmabuf_handle;
+
+  if (!plugin->dmabuf_allocator)
+    plugin->dmabuf_allocator = gst_dmabuf_allocator_new ();
+  mem = gst_dmabuf_allocator_alloc (plugin->dmabuf_allocator, dmabuf_fd,
+      gst_buffer_get_size (*outbuf));
+  if (!mem)
+    goto error_dmabuf_handle;
+
+  gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
+      g_quark_from_static_string ("GstVaapiBufferProxy"), dmabuf_proxy,
+      (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
+
+  buffer = gst_buffer_new ();
+  gst_buffer_append_memory (buffer, mem);
+  gst_buffer_add_parent_buffer_meta (buffer, *outbuf);
+  gst_buffer_unref (*outbuf);
+  *outbuf = buffer;
+  return TRUE;
+
+  /* ERRORS */
+error_dmabuf_handle:
+  {
+    gst_vaapi_buffer_proxy_unref (dmabuf_proxy);
+    return FALSE;
+  }
 }
