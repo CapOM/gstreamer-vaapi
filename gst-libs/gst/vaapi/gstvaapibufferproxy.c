@@ -214,13 +214,17 @@ gst_vaapi_buffer_proxy_new_from_object (GstVaapiObject * object,
 
   /* ERRORS */
 error_unsupported_mem_type:
-  GST_ERROR ("unsupported buffer type (%d)", proxy->type);
-  gst_vaapi_buffer_proxy_unref_internal (proxy);
-  return NULL;
+  {
+    GST_ERROR ("unsupported buffer type (%d)", proxy->type);
+    gst_vaapi_buffer_proxy_unref_internal (proxy);
+    return NULL;
+  }
 error_acquire_handle:
-  GST_ERROR ("failed to acquire the underlying VA buffer handle");
-  gst_vaapi_buffer_proxy_unref_internal (proxy);
-  return NULL;
+  {
+    GST_ERROR ("failed to acquire the underlying VA buffer handle");
+    gst_vaapi_buffer_proxy_unref_internal (proxy);
+    return NULL;
+  }
 #else
   return NULL;
 #endif
