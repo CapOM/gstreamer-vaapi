@@ -1189,6 +1189,23 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
   gst_buffer_add_parent_buffer_meta (buffer, *outbuf);
   gst_buffer_copy_into (buffer, *outbuf, GST_BUFFER_COPY_METADATA, 0, -1);
 
+  {
+    GstVideoMeta *vmeta;
+    GstVideoCropMeta *cmeta, *outcmeta;
+    vmeta = gst_buffer_get_video_meta (*outbuf);
+    if (vmeta) {
+      gst_buffer_add_video_meta_full (buffer, vmeta->flags, vmeta->format,
+          vmeta->width, vmeta->height, vmeta->n_planes, vmeta->offset,
+          vmeta->stride);
+    }
+    cmeta = gst_buffer_get_video_crop_meta (*outbuf);
+    if (cmeta) {
+      outcmeta = gst_buffer_add_video_crop_meta (buffer);
+      if (outcmeta)
+        *outcmeta = *cmeta;
+    }
+  }
+
   gst_buffer_unref (*outbuf);
   *outbuf = buffer;
   return TRUE;
