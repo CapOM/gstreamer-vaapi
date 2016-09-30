@@ -373,6 +373,18 @@ gst_vaapi_buffer_proxy_get_buffer (GstVaapiBufferProxy * proxy,
         gst_dmabuf_allocator_alloc (proxy->dmabuf_allocator,
         proxy->va_info.handle, image->internal_image.data_size);
 
+    /*{
+       GstMapInfo info;
+
+       //map read succeeds and pb in eglimage it is same dmabuf but still not using the same attribs FD0/FD1 attribs
+       if (gst_memory_map (mem, &info, GST_MAP_READWRITE) && info.size != 0) {
+       g_print("-- vaapi map succeeds %d \n", dmabuf_fd);
+       gst_memory_unmap (mem, &info);
+       } else {
+       g_print("-- vaapi map failed %d \n", dmabuf_fd);
+       }
+       } */
+
     for (i = 0; i < image->internal_image.num_planes; i++) {
       offsets[i] = image->internal_image.offsets[i];
       strides[i] = image->internal_image.pitches[i];
