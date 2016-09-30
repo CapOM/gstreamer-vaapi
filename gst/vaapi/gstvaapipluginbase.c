@@ -1191,6 +1191,18 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
   if (!mem)
     goto error_dmabuf_handle;
 
+  /*{
+     GstMapInfo info;
+
+     //map read succeeds and pb in eglimage it is same dmabuf but still not using the same attribs FD0/FD1 attribs
+     if (gst_memory_map (mem, &info, GST_MAP_READWRITE) && info.size != 0) {
+     g_print("-- vaapi map succeeds %d \n", dmabuf_fd);
+     gst_memory_unmap (mem, &info);
+     } else {
+     g_print("-- vaapi map failed %d \n", dmabuf_fd);
+     }
+     } */
+
   buffer = gst_buffer_new ();
   gst_buffer_append_memory (buffer, mem);
   gst_buffer_add_parent_buffer_meta (buffer, *outbuf);
