@@ -71,6 +71,8 @@ struct _GstVaapiBufferProxy {
 #if VA_CHECK_VERSION (0,36,0)
   VABufferInfo          va_info;
 #endif
+  GstAllocator          *dmabuf_allocator;
+  GstMemory             *mem;
 };
 
 G_GNUC_INTERNAL

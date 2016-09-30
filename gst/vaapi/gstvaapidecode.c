@@ -611,8 +611,9 @@ gst_vaapidecode_push_decoded_frame (GstVideoDecoder * vdec,
     if (decode->has_texture_upload_meta)
       gst_buffer_ensure_texture_upload_meta (out_frame->output_buffer);
 #endif
-    gst_vaapi_plugin_base_export_dma_buffer (GST_VAAPI_PLUGIN_BASE (vdec),
-        &out_frame->output_buffer);
+    if (!gst_vaapi_plugin_base_export_dma_buffer (GST_VAAPI_PLUGIN_BASE (vdec),
+            &out_frame->output_buffer))
+      goto error_create_buffer; /* TODO: use a new and specific label */
   }
 
   if (decode->in_segment.rate < 0.0
