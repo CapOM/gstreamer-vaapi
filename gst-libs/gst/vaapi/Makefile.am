@@ -29,6 +29,7 @@ libgstvaapi_cflags =				\
 	$(GST_BASE_CFLAGS)			\
 	$(GST_BASEVIDEO_CFLAGS)			\
 	$(GST_VIDEO_CFLAGS)			\
+        $(GST_ALLOCATORS_CFLAGS)                \
 	$(GST_CFLAGS)				\
 	$(GST_CODEC_PARSERS_CFLAGS)		\
 	$(LIBVA_CFLAGS)				\
@@ -37,6 +38,7 @@ libgstvaapi_cflags =				\
 libgstvaapi_libs =				\
 	$(GST_BASE_LIBS)			\
 	$(GST_BASEVIDEO_LIBS)			\
+        $(GST_ALLOCATORS_LIBS)                  \
 	$(GST_LIBS)				\
 	$(GST_VIDEO_LIBS)			\
 	$(GST_CODEC_PARSERS_LIBS)		\

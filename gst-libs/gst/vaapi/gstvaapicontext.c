@@ -136,6 +136,12 @@ context_ensure_surfaces (GstVaapiContext * context)
   for (i = context->surfaces->len; i < num_surfaces; i++) {
     surface = gst_vaapi_surface_new (GST_VAAPI_OBJECT_DISPLAY (context),
         cip->chroma_type, cip->width, cip->height);
+    /* TODO: if can_dmabuf then has to be linear:
+       GstVideoInfo vip;
+       gst_video_info_set_format (&vip, GST_VIDEO_FORMAT_NV12, cip->width, cip->height);
+       surface = gst_vaapi_surface_new_full (GST_VAAPI_OBJECT_DISPLAY (context), &vip,
+       FLAG_LINEAR_STORAGE & FLAG_FIXED_STRIDES & FLAG_FIXED_OFFSETS);
+     */
     if (!surface)
       return FALSE;
     gst_vaapi_surface_set_parent_context (surface, context);

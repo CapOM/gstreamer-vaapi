@@ -21,6 +21,7 @@
  */
 
 #include "sysdeps.h"
+#include <gst/allocators/allocators.h>
 #include "gstvaapicompat.h"
 #include "gstvaapibufferproxy.h"
 #include "gstvaapibufferproxy_priv.h"
@@ -128,6 +129,11 @@ gst_vaapi_buffer_proxy_finalize (GstVaapiBufferProxy * proxy)
 {
   gst_vaapi_buffer_proxy_release_handle (proxy);
 
+  g_clear_object (&proxy->dmabuf_allocator);
+
+  if (proxy->mem)
+    gst_memory_unref (proxy->mem);
+
   /* Notify the user function that the object is now destroyed */
   if (proxy->destroy_func)
     proxy->destroy_func (proxy->destroy_data);
@@ -171,6 +177,8 @@ gst_vaapi_buffer_proxy_new (guintptr handle, guint type, gsize size,
   proxy->va_info.type = VAImageBufferType;
   proxy->va_info.mem_type = from_GstVaapiBufferMemoryType (proxy->type);
   proxy->va_info.mem_size = size;
+  proxy->mem = NULL;
+  proxy->dmabuf_allocator = NULL;
   if (!proxy->va_info.mem_type)
     goto error_unsupported_mem_type;
   return proxy;
@@ -204,6 +212,8 @@ gst_vaapi_buffer_proxy_new_from_object (GstVaapiObject * object,
   proxy->destroy_data = data;
   proxy->type = type;
   proxy->va_buf = buf_id;
+  proxy->mem = NULL;
+  proxy->dmabuf_allocator = NULL;
   memset (&proxy->va_info, 0, sizeof (proxy->va_info));
   proxy->va_info.mem_type = from_GstVaapiBufferMemoryType (proxy->type);
   if (!proxy->va_info.mem_type)
@@ -329,4 +339,30 @@ gst_vaapi_buffer_proxy_get_size (GstVaapiBufferProxy * proxy)
 #else
   return 0;
 #endif
+}
+
+GstMemory *
+gst_vaapi_buffer_proxy_get_memory (GstVaapiBufferProxy * proxy, gsize size)
+{
+  g_return_val_if_fail (proxy != NULL, 0);
+
+  /* TODO: re-use gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo,
+   * GST_VAAPI_SURFACE_ALLOC_FLAG_LINEAR_STORAGE); */
+  if (!proxy->dmabuf_allocator)
+    proxy->dmabuf_allocator = gst_dmabuf_allocator_new ();
+
+  /* FIXME check with proxy->va_info.mem_size */
+  if (!proxy->mem /* or size changed ? */ )
+    proxy->mem =
+        gst_dmabuf_allocator_alloc (proxy->dmabuf_allocator,
+        proxy->va_info.handle, size);
+
+  /* Make sure to release the image */
+  if (proxy->destroy_func) {
+    proxy->destroy_func (proxy->destroy_data);
+    proxy->destroy_func = NULL;
+    proxy->destroy_data = NULL;
+  }
+
+  return gst_memory_ref (proxy->mem);
 }

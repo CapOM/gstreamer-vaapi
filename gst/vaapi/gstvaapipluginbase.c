@@ -23,6 +23,7 @@
  */
 
 #include "gstcompat.h"
+#include <unistd.h>
 #include <gst/vaapi/gstvaapisurface_drm.h>
 #include <gst/base/gstpushsrc.h>
 #include "gstvaapipluginbase.h"
@@ -1168,21 +1169,27 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
   surface = gst_vaapi_video_meta_get_surface (vmeta);
   if (!surface)
     return FALSE;
-  dmabuf_proxy = gst_vaapi_surface_get_dma_buf_handle (surface);
+
+  dmabuf_proxy = gst_vaapi_surface_peek_buffer_proxy (surface);
+
+  if (!dmabuf_proxy) {
+    dmabuf_proxy = gst_vaapi_surface_get_dma_buf_handle (surface);
+    if (!dmabuf_proxy)
+      return FALSE;
+
+    gst_vaapi_surface_set_buffer_proxy (surface, dmabuf_proxy);
+  }
+
   dmabuf_fd = gst_vaapi_buffer_proxy_get_handle (dmabuf_proxy);
+  /* FIXME: need dup or not ? || (dmabuf_fd = dup (dmabuf_fd)) < 0) */
   if (dmabuf_fd < 0)
     goto error_dmabuf_handle;
 
-  if (!plugin->dmabuf_allocator)
-    plugin->dmabuf_allocator = gst_dmabuf_allocator_new ();
-  mem = gst_dmabuf_allocator_alloc (plugin->dmabuf_allocator, dmabuf_fd,
+  mem =
+      gst_vaapi_buffer_proxy_get_memory (dmabuf_proxy,
       gst_buffer_get_size (*outbuf));
   if (!mem)
     goto error_dmabuf_handle;
-
-  gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
-      g_quark_from_static_string ("GstVaapiBufferProxy"), dmabuf_proxy,
-      (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
 
   buffer = gst_buffer_new ();
   gst_buffer_append_memory (buffer, mem);
@@ -1194,7 +1201,6 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
   /* ERRORS */
 error_dmabuf_handle:
   {
-    gst_vaapi_buffer_proxy_unref (dmabuf_proxy);
     return FALSE;
   }
 }
