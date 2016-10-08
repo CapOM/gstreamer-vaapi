@@ -179,6 +179,10 @@ gst_vaapi_window_wayland_sync (GstVaapiWindow * window)
     if (wl_display_flush (wl_display) < 0)
       goto error;
 
+    /* if some other thread already flushed the data to client side */
+    if (g_atomic_int_get (&priv->num_frames_pending) == 0)
+      break;
+
   again:
     if (gst_poll_wait (priv->poll, GST_CLOCK_TIME_NONE) < 0) {
       int saved_errno = errno;
