@@ -1158,6 +1158,7 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
   GstMemory *mem;
   GstBuffer *buffer;
   guint offsets[3];
+  guint strides[3];
 
   g_return_val_if_fail (outbuf && GST_IS_BUFFER (*outbuf), FALSE);
 
@@ -1188,7 +1189,8 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
     goto error_dmabuf_handle;
 
   memset (offsets, 0, sizeof (offsets));
-  mem = gst_vaapi_buffer_proxy_get_memory (dmabuf_proxy, offsets);
+  memset (strides, 0, sizeof (strides));
+  mem = gst_vaapi_buffer_proxy_get_memory (dmabuf_proxy, offsets, strides);
   if (!mem)
     goto error_dmabuf_handle;
 
@@ -1203,8 +1205,10 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
     vmeta = gst_buffer_get_video_meta (*outbuf);
     if (vmeta) {
       gint i;
-      for (i = 0; i < 3; i++)
+      for (i = 0; i < 3; i++) {
         vmeta->offset[i] = offsets[i];
+        vmeta->stride[i] = strides[i];
+      }
       gst_buffer_add_video_meta_full (buffer, vmeta->flags, vmeta->format,
           vmeta->width, vmeta->height, vmeta->n_planes, vmeta->offset,
           vmeta->stride);

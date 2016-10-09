@@ -348,7 +348,7 @@ gst_vaapi_buffer_proxy_get_size (GstVaapiBufferProxy * proxy)
 
 GstMemory *
 gst_vaapi_buffer_proxy_get_memory (GstVaapiBufferProxy * proxy,
-    guint offsets[3])
+    guint offsets[3], guint strides[3])
 {
   g_return_val_if_fail (proxy != NULL, 0);
 
@@ -363,8 +363,10 @@ gst_vaapi_buffer_proxy_get_memory (GstVaapiBufferProxy * proxy,
         gst_dmabuf_allocator_alloc (proxy->dmabuf_allocator,
         proxy->va_info.handle, image->internal_image.data_size);
 
-    for (i = 0; i < image->internal_image.num_planes; i++)
+    for (i = 0; i < image->internal_image.num_planes; i++) {
       offsets[i] = image->internal_image.offsets[i];
+      strides[i] = image->internal_image.pitches[i];
+    }
 
     /* Make sure to release the image */
     proxy->destroy_func (proxy->destroy_data);
