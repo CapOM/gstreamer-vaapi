@@ -25,6 +25,7 @@
 #include "gstvaapicompat.h"
 #include "gstvaapibufferproxy.h"
 #include "gstvaapibufferproxy_priv.h"
+#include "gstvaapiimage_priv.h"
 #include "gstvaapiutils.h"
 #include "gstvaapiobject_priv.h"
 
@@ -346,23 +347,26 @@ gst_vaapi_buffer_proxy_get_size (GstVaapiBufferProxy * proxy)
 }
 
 GstMemory *
-gst_vaapi_buffer_proxy_get_memory (GstVaapiBufferProxy * proxy, gsize size)
+gst_vaapi_buffer_proxy_get_memory (GstVaapiBufferProxy * proxy,
+    guint offsets[3])
 {
   g_return_val_if_fail (proxy != NULL, 0);
 
-  /* TODO: re-use gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo,
-   * GST_VAAPI_SURFACE_ALLOC_FLAG_LINEAR_STORAGE); */
   if (!proxy->dmabuf_allocator)
     proxy->dmabuf_allocator = gst_dmabuf_allocator_new ();
 
-  /* FIXME check with proxy->va_info.mem_size */
-  if (!proxy->mem /* or size changed ? */ )
+  if (!proxy->mem) {
+    GstVaapiImage *image;
+    gint i;
+    image = GST_VAAPI_IMAGE (proxy->destroy_data);
     proxy->mem =
         gst_dmabuf_allocator_alloc (proxy->dmabuf_allocator,
-        proxy->va_info.handle, size);
+        proxy->va_info.handle, image->internal_image.data_size);
 
-  /* Make sure to release the image */
-  if (proxy->destroy_func) {
+    for (i = 0; i < image->internal_image.num_planes; i++)
+      offsets[i] = image->internal_image.offsets[i];
+
+    /* Make sure to release the image */
     proxy->destroy_func (proxy->destroy_data);
     proxy->destroy_func = NULL;
     proxy->destroy_data = NULL;
