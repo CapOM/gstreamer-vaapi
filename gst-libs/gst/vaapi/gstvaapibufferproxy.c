@@ -132,8 +132,10 @@ gst_vaapi_buffer_proxy_finalize (GstVaapiBufferProxy * proxy)
 
   g_clear_object (&proxy->dmabuf_allocator);
 
-  if (proxy->mem)
-    gst_memory_unref (proxy->mem);
+  if (proxy->buffer) {
+    gst_buffer_unref (proxy->buffer);
+    proxy->buffer = NULL;
+  }
 
   /* Notify the user function that the object is now destroyed */
   if (proxy->destroy_func)
@@ -178,7 +180,7 @@ gst_vaapi_buffer_proxy_new (guintptr handle, guint type, gsize size,
   proxy->va_info.type = VAImageBufferType;
   proxy->va_info.mem_type = from_GstVaapiBufferMemoryType (proxy->type);
   proxy->va_info.mem_size = size;
-  proxy->mem = NULL;
+  proxy->buffer = NULL;
   proxy->dmabuf_allocator = NULL;
   if (!proxy->va_info.mem_type)
     goto error_unsupported_mem_type;
@@ -213,7 +215,7 @@ gst_vaapi_buffer_proxy_new_from_object (GstVaapiObject * object,
   proxy->destroy_data = data;
   proxy->type = type;
   proxy->va_buf = buf_id;
-  proxy->mem = NULL;
+  proxy->buffer = NULL;
   proxy->dmabuf_allocator = NULL;
   memset (&proxy->va_info, 0, sizeof (proxy->va_info));
   proxy->va_info.mem_type = from_GstVaapiBufferMemoryType (proxy->type);
@@ -346,20 +348,28 @@ gst_vaapi_buffer_proxy_get_size (GstVaapiBufferProxy * proxy)
 #endif
 }
 
-GstMemory *
-gst_vaapi_buffer_proxy_get_memory (GstVaapiBufferProxy * proxy,
-    guint offsets[3], guint strides[3])
+GstBuffer *
+gst_vaapi_buffer_proxy_get_buffer (GstVaapiBufferProxy * proxy,
+    GstBuffer * outbuf)
 {
   g_return_val_if_fail (proxy != NULL, 0);
 
   if (!proxy->dmabuf_allocator)
     proxy->dmabuf_allocator = gst_dmabuf_allocator_new ();
 
-  if (!proxy->mem) {
+  if (!proxy->buffer) {
     GstVaapiImage *image;
+    GstBuffer *buffer;
+    GstMemory *mem;
     gint i;
+    gsize offsets[GST_VIDEO_MAX_PLANES];
+    gint strides[GST_VIDEO_MAX_PLANES];
+
+    memset (offsets, 0, sizeof (offsets));
+    memset (strides, 0, sizeof (strides));
+
     image = GST_VAAPI_IMAGE (proxy->destroy_data);
-    proxy->mem =
+    mem =
         gst_dmabuf_allocator_alloc (proxy->dmabuf_allocator,
         proxy->va_info.handle, image->internal_image.data_size);
 
@@ -372,7 +382,29 @@ gst_vaapi_buffer_proxy_get_memory (GstVaapiBufferProxy * proxy,
     proxy->destroy_func (proxy->destroy_data);
     proxy->destroy_func = NULL;
     proxy->destroy_data = NULL;
+
+    buffer = gst_buffer_new ();
+    gst_buffer_append_memory (buffer, gst_memory_ref (mem));
+    //gst_buffer_add_parent_buffer_meta (proxy->buffer, outbuf);
+    gst_buffer_copy_into (buffer, outbuf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+    {
+      GstVideoMeta *vmeta;
+      GstVideoCropMeta *cmeta, *outcmeta;
+      vmeta = gst_buffer_get_video_meta (outbuf);
+      if (vmeta) {
+        gst_buffer_add_video_meta_full (buffer, vmeta->flags, vmeta->format,
+            vmeta->width, vmeta->height, vmeta->n_planes, offsets, strides);
+      }
+      cmeta = gst_buffer_get_video_crop_meta (outbuf);
+      if (cmeta) {
+        outcmeta = gst_buffer_add_video_crop_meta (buffer);
+        if (outcmeta)
+          *outcmeta = *cmeta;
+      }
+    }
+    proxy->buffer = buffer;
   }
 
-  return gst_memory_ref (proxy->mem);
+  return gst_buffer_ref (proxy->buffer);
 }

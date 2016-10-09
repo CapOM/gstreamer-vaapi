@@ -1155,10 +1155,7 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
   GstVaapiSurface *surface;
   GstVaapiBufferProxy *dmabuf_proxy;
   gint dmabuf_fd;
-  GstMemory *mem;
   GstBuffer *buffer;
-  guint offsets[3];
-  guint strides[3];
 
   g_return_val_if_fail (outbuf && GST_IS_BUFFER (*outbuf), FALSE);
 
@@ -1185,41 +1182,13 @@ gst_vaapi_plugin_base_export_dma_buffer (GstVaapiPluginBase * plugin,
   dmabuf_fd = gst_vaapi_buffer_proxy_get_handle (dmabuf_proxy);
   /* No need dup because the proxy is cached. When the cache is destroyed
    * it calls vaReleaseBufferHandle which one close the fd. */
-  if (dmabuf_fd < 0)
+  if (dmabuf_fd < 0)            // need dup because gstfd close the fd by default
     goto error_dmabuf_handle;
 
-  memset (offsets, 0, sizeof (offsets));
-  memset (strides, 0, sizeof (strides));
-  mem = gst_vaapi_buffer_proxy_get_memory (dmabuf_proxy, offsets, strides);
-  if (!mem)
+
+  buffer = gst_vaapi_buffer_proxy_get_buffer (dmabuf_proxy, *outbuf);
+  if (!buffer)
     goto error_dmabuf_handle;
-
-  buffer = gst_buffer_new ();
-  gst_buffer_append_memory (buffer, mem);
-  gst_buffer_add_parent_buffer_meta (buffer, *outbuf);
-  gst_buffer_copy_into (buffer, *outbuf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-  {
-    GstVideoMeta *vmeta;
-    GstVideoCropMeta *cmeta, *outcmeta;
-    vmeta = gst_buffer_get_video_meta (*outbuf);
-    if (vmeta) {
-      gint i;
-      for (i = 0; i < 3; i++) {
-        vmeta->offset[i] = offsets[i];
-        vmeta->stride[i] = strides[i];
-      }
-      gst_buffer_add_video_meta_full (buffer, vmeta->flags, vmeta->format,
-          vmeta->width, vmeta->height, vmeta->n_planes, vmeta->offset,
-          vmeta->stride);
-    }
-    cmeta = gst_buffer_get_video_crop_meta (*outbuf);
-    if (cmeta) {
-      outcmeta = gst_buffer_add_video_crop_meta (buffer);
-      if (outcmeta)
-        *outcmeta = *cmeta;
-    }
-  }
 
   gst_buffer_unref (*outbuf);
   *outbuf = buffer;

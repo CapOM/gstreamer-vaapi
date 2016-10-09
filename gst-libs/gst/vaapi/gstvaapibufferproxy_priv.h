@@ -72,7 +72,7 @@ struct _GstVaapiBufferProxy {
   VABufferInfo          va_info;
 #endif
   GstAllocator          *dmabuf_allocator;
-  GstMemory             *mem;
+  GstBuffer             *buffer;
 };
 
 G_GNUC_INTERNAL
