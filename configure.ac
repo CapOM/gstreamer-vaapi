@@ -24,9 +24,9 @@ m4_define([gst_vaapi_lt_age],           [990])
 m4_define([glib_version], [2.40])
 
 # gstreamer version number
-m4_define([gst_version],                [1.9.90])
-m4_define([gst_plugins_base_version],   [1.9.90])
-m4_define([gst_plugins_bad_version],    [1.9.90])
+m4_define([gst_version],                [1.9.2])
+m4_define([gst_plugins_base_version],   [1.9.2])
+m4_define([gst_plugins_bad_version],    [1.9.2])
 
 # Wayland minimum version number
 m4_define([wayland_api_version], [1.0.2])
