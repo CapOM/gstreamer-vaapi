@@ -262,11 +262,16 @@ gst_vaapidecode_ensure_allowed_srcpad_caps (GstVaapiDecode * decode)
     return FALSE;
 
   /* Create VA caps */
-  out_caps = gst_caps_from_string (GST_VAAPI_MAKE_SURFACE_CAPS ";"
-      GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS);
+  out_caps = gst_caps_from_string (GST_VAAPI_MAKE_SURFACE_CAPS);
   if (!out_caps) {
     GST_WARNING_OBJECT (decode, "failed to create VA/GL source caps");
     return FALSE;
+  }
+
+  if (!GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode)) {
+    out_caps = gst_caps_make_writable (out_caps);
+    gst_caps_append (out_caps,
+        gst_caps_from_string (GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS));
   }
 
   raw_caps = gst_vaapi_plugin_base_get_allowed_raw_caps
