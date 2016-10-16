@@ -242,6 +242,7 @@ gst_vaapi_plugin_base_init (GstVaapiPluginBase * plugin,
   plugin->debug_category = debug_category;
   plugin->display_type = GST_VAAPI_DISPLAY_TYPE_ANY;
   plugin->display_type_req = GST_VAAPI_DISPLAY_TYPE_ANY;
+  plugin->srcpad_can_dmabuf = FALSE;
 
   /* sink pad */
   plugin->sinkpad = gst_element_get_static_pad (GST_ELEMENT (plugin), "sink");
@@ -521,6 +522,16 @@ ensure_srcpad_allocator (GstVaapiPluginBase * plugin, GstVideoInfo * vinfo)
 
   plugin->srcpad_allocator =
       gst_vaapi_video_allocator_new (plugin->display, vinfo, 0);
+
+  if (plugin->srcpad_can_dmabuf) {
+    plugin->srcpad_allocator =
+        gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo,
+        /*GST_VAAPI_SURFACE_ALLOC_FLAG_LINEAR_STORAGE */ 0);
+  } else {
+    plugin->srcpad_allocator =
+        gst_vaapi_video_allocator_new (plugin->display, vinfo, 0);
+  }
+
   return plugin->srcpad_allocator != NULL;
 }
 

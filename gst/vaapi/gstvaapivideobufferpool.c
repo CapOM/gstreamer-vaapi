@@ -140,11 +140,13 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
   GstVideoAlignment align;
   GstAllocator *allocator;
   gboolean ret, updated = FALSE;
+  guint size, min_buffers, max_buffers;
 
   GST_DEBUG_OBJECT (pool, "config %" GST_PTR_FORMAT, config);
 
   caps = NULL;
-  if (!gst_buffer_pool_config_get_params (config, &caps, NULL, NULL, NULL))
+  if (!gst_buffer_pool_config_get_params (config, &caps, &size, &min_buffers,
+          &max_buffers))
     goto error_invalid_config;
   if (!caps)
     goto error_no_caps;
@@ -176,6 +178,10 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
       if (!alloc_vip)
         goto error_create_allocator_info;
       priv->alloc_info = *alloc_vip;
+    }
+    if (GST_VIDEO_INFO_SIZE (&priv->alloc_info) != size) {
+      gst_buffer_pool_config_set_params (config, caps,
+          GST_VIDEO_INFO_SIZE (&priv->alloc_info), min_buffers, max_buffers);
     }
   }
   if (!priv->allocator)
@@ -261,6 +267,8 @@ gst_vaapi_video_buffer_pool_alloc_buffer (GstBufferPool * pool,
 {
   GstVaapiVideoBufferPoolPrivate *const priv =
       GST_VAAPI_VIDEO_BUFFER_POOL (pool)->priv;
+  GstVaapiVideoBufferPoolAcquireParams *const priv_params =
+      (GstVaapiVideoBufferPoolAcquireParams *) params;
   GstVaapiVideoMeta *meta;
   GstMemory *mem;
   GstBuffer *buffer;
@@ -283,6 +291,9 @@ gst_vaapi_video_buffer_pool_alloc_buffer (GstBufferPool * pool,
   }
   if (!buffer)
     goto error_create_buffer;
+
+  if (priv_params && priv_params->proxy)
+    gst_vaapi_video_meta_set_surface_proxy (meta, priv_params->proxy);
 
   if (priv->use_dmabuf_memory)
     mem = gst_vaapi_dmabuf_memory_new (priv->allocator, meta);
@@ -342,6 +353,66 @@ error_create_memory:
   }
 }
 
+static GstFlowReturn
+gst_vaapi_video_buffer_pool_acquire_buffer (GstBufferPool * pool,
+    GstBuffer ** out_buffer_ptr, GstBufferPoolAcquireParams * params)
+{
+  GstVaapiVideoBufferPoolPrivate *const priv =
+      GST_VAAPI_VIDEO_BUFFER_POOL (pool)->priv;
+  GstVaapiVideoBufferPoolAcquireParams *const priv_params =
+      (GstVaapiVideoBufferPoolAcquireParams *) params;
+  GstFlowReturn ret;
+  GstBuffer *buffer;
+  GstMemory *mem;
+  GstVaapiVideoMeta *meta;
+  GstVaapiSurface *surface;
+  GstVaapiBufferProxy *dmabuf_proxy;
+
+  GST_DEBUG_OBJECT (pool, "acquire");
+
+  ret =
+      GST_BUFFER_POOL_CLASS
+      (gst_vaapi_video_buffer_pool_parent_class)->acquire_buffer (pool, &buffer,
+      params);
+
+  if (!priv->use_dmabuf_memory || !params || !priv_params->proxy
+      || ret != GST_FLOW_OK) {
+    *out_buffer_ptr = buffer;
+    return ret;
+  }
+
+  g_assert (gst_buffer_n_memory (buffer) == 1);
+
+  /* Find the cached memory associated with the given surface. */
+  surface = GST_VAAPI_SURFACE_PROXY_SURFACE (priv_params->proxy);
+  dmabuf_proxy = gst_vaapi_surface_peek_buffer_proxy (surface);
+  if (dmabuf_proxy) {
+    mem = gst_vaapi_buffer_proxy_get_mem (dmabuf_proxy);
+    if (mem == gst_buffer_peek_memory (buffer, 0))
+      mem = NULL;
+    else
+      mem = gst_memory_ref (mem);
+  } else {
+    /* The given surface has not been exported yet. */
+    meta = gst_buffer_get_vaapi_video_meta (buffer);
+    if (gst_vaapi_video_meta_get_surface_proxy (meta))
+      gst_vaapi_video_meta_set_surface_proxy (meta, priv_params->proxy);
+
+    mem =
+        gst_vaapi_dmabuf_memory_new (priv->allocator,
+        gst_buffer_get_vaapi_video_meta (buffer));
+  }
+
+  /* Attach the GstFdMemory to the output buffer. */
+  if (mem) {
+    gst_buffer_replace_memory (buffer, 0, mem);
+    gst_buffer_unset_flags (buffer, GST_BUFFER_FLAG_TAG_MEMORY);
+  }
+
+  *out_buffer_ptr = buffer;
+  return GST_FLOW_OK;
+}
+
 static void
 gst_vaapi_video_buffer_pool_reset_buffer (GstBufferPool * pool,
     GstBuffer * buffer)
@@ -373,6 +444,7 @@ gst_vaapi_video_buffer_pool_class_init (GstVaapiVideoBufferPoolClass * klass)
   pool_class->get_options = gst_vaapi_video_buffer_pool_get_options;
   pool_class->set_config = gst_vaapi_video_buffer_pool_set_config;
   pool_class->alloc_buffer = gst_vaapi_video_buffer_pool_alloc_buffer;
+  pool_class->acquire_buffer = gst_vaapi_video_buffer_pool_acquire_buffer;
   pool_class->reset_buffer = gst_vaapi_video_buffer_pool_reset_buffer;
 
   /**

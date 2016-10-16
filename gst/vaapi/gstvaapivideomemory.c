@@ -801,32 +801,41 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * allocator, GstVaapiVideoMeta * meta)
   g_return_val_if_fail (allocator != NULL, NULL);
   g_return_val_if_fail (meta != NULL, NULL);
 
-  vip = gst_allocator_get_vaapi_video_info (allocator, &flags);
-  if (!vip)
-    return NULL;
+  if (gst_vaapi_video_meta_get_surface_proxy (meta)) {
+    proxy = NULL;
+    surface =
+        GST_VAAPI_SURFACE_PROXY_SURFACE (gst_vaapi_video_meta_get_surface_proxy
+        (meta));
+  } else {
+    vip = gst_allocator_get_vaapi_video_info (allocator, &flags);
+    if (!vip)
+      return NULL;
 
-  display = gst_vaapi_video_meta_get_display (meta);
-  if (!meta)
-    return NULL;
+    display = gst_vaapi_video_meta_get_display (meta);
+    if (!meta)
+      return NULL;
 
-  surface = gst_vaapi_surface_new_full (display, vip, flags);
-  if (!surface)
-    goto error_create_surface;
+    surface = gst_vaapi_surface_new_full (display, vip, flags);
+    if (!surface)
+      goto error_create_surface;
 
-  proxy = gst_vaapi_surface_proxy_new (surface);
-  if (!proxy)
-    goto error_create_surface_proxy;
+    proxy = gst_vaapi_surface_proxy_new (surface);
+    if (!proxy)
+      goto error_create_surface_proxy;
+  }
 
   dmabuf_proxy = gst_vaapi_surface_get_dma_buf_handle (surface);
   gst_vaapi_object_unref (surface);
   if (!dmabuf_proxy)
     goto error_create_dmabuf_proxy;
 
-  gst_vaapi_video_meta_set_surface_proxy (meta, proxy);
-  gst_vaapi_surface_proxy_unref (proxy);
+  if (proxy) {
+    gst_vaapi_video_meta_set_surface_proxy (meta, proxy);
+    gst_vaapi_surface_proxy_unref (proxy);
+  }
 
   dmabuf_fd = gst_vaapi_buffer_proxy_get_handle (dmabuf_proxy);
-  if (dmabuf_fd < 0 || (dmabuf_fd = dup (dmabuf_fd)) < 0)
+  if (dmabuf_fd < 0 /*|| (dmabuf_fd = dup (dmabuf_fd)) < 0 */ )
     goto error_create_dmabuf_handle;
 
   mem = gst_dmabuf_allocator_alloc (allocator, dmabuf_fd,
@@ -834,9 +843,16 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * allocator, GstVaapiVideoMeta * meta)
   if (!mem)
     goto error_create_dmabuf_memory;
 
-  gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
-      GST_VAAPI_BUFFER_PROXY_QUARK, dmabuf_proxy,
-      (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
+  if (proxy) {
+    gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
+        GST_VAAPI_BUFFER_PROXY_QUARK, dmabuf_proxy,
+        (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
+  } else {
+    gst_vaapi_buffer_proxy_set_mem (dmabuf_proxy, mem);
+    gst_vaapi_surface_set_buffer_proxy (surface, dmabuf_proxy);
+    gst_vaapi_buffer_proxy_release_data (dmabuf_proxy);
+  }
+
   return mem;
 
   /* ERRORS */
