@@ -872,7 +872,8 @@ error_create_surface_proxy:
 error_create_dmabuf_proxy:
   {
     GST_ERROR ("failed to export VA surface to DMABUF");
-    gst_vaapi_surface_proxy_unref (proxy);
+    if (proxy)
+      gst_vaapi_surface_proxy_unref (proxy);
     return NULL;
   }
 error_create_dmabuf_handle:
@@ -911,8 +912,17 @@ gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
       break;
 
     image = gst_vaapi_surface_derive_image (surface);
-    if (!image || !gst_vaapi_image_map (image))
+    if (!image) {
+      GST_ERROR_OBJECT (surface,
+          "failed derive surface to image for format: %s",
+          GST_VIDEO_INFO_FORMAT_STRING (vip));
       break;
+    }
+
+    if (!gst_vaapi_image_map (image)) {
+      GST_ERROR ("failed to map image");
+      break;
+    }
 
     gst_video_info_set_format (&alloc_info, GST_VIDEO_INFO_FORMAT (vip),
         GST_VIDEO_INFO_WIDTH (vip), GST_VIDEO_INFO_HEIGHT (vip));

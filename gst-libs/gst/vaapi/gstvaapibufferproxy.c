@@ -358,7 +358,7 @@ gst_vaapi_buffer_proxy_get_mem (GstVaapiBufferProxy * proxy)
 void
 gst_vaapi_buffer_proxy_release_data (GstVaapiBufferProxy * proxy)
 {
-  g_return_val_if_fail (proxy != NULL, 0);
+  g_return_if_fail (proxy != NULL);
 
   if (proxy->destroy_func) {
     proxy->destroy_func (proxy->destroy_data);

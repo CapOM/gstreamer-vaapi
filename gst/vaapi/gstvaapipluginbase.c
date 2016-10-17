@@ -520,9 +520,6 @@ ensure_srcpad_allocator (GstVaapiPluginBase * plugin, GstVideoInfo * vinfo)
   if (!reset_allocator (plugin->srcpad_allocator, vinfo))
     return TRUE;
 
-  plugin->srcpad_allocator =
-      gst_vaapi_video_allocator_new (plugin->display, vinfo, 0);
-
   if (plugin->srcpad_can_dmabuf) {
     plugin->srcpad_allocator =
         gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo,
