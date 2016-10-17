@@ -847,6 +847,9 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * allocator, GstVaapiVideoMeta * meta)
     gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
         GST_VAAPI_BUFFER_PROXY_QUARK, dmabuf_proxy,
         (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
+
+    /* need a proper dmabuf allocator and set direction when creating it */
+    gst_vaapi_buffer_proxy_release_data (dmabuf_proxy);
   } else {
     gst_vaapi_buffer_proxy_set_mem (dmabuf_proxy, mem);
     gst_vaapi_surface_set_buffer_proxy (surface, dmabuf_proxy);
@@ -896,7 +899,7 @@ error_create_dmabuf_memory:
 
 GstAllocator *
 gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
-    const GstVideoInfo * vip, guint flags)
+    const GstVideoInfo * vip, guint flags, GstPadDirection direction)
 {
   GstAllocator *allocator = NULL;
   GstVaapiSurface *surface = NULL;
