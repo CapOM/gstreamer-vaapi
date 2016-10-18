@@ -209,12 +209,12 @@ gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
 G_GNUC_INTERNAL
 const GstVideoInfo *
 gst_allocator_get_vaapi_video_info (GstAllocator * allocator,
-    guint * out_flags_ptr);
+    guint * out_flags_ptr, GstPadDirection * direction_ptr);
 
 G_GNUC_INTERNAL
 gboolean
 gst_allocator_set_vaapi_video_info (GstAllocator * allocator,
-    const GstVideoInfo * vip, guint flags);
+    const GstVideoInfo * vip, guint flags, GstPadDirection direction);
 
 G_GNUC_INTERNAL
 gboolean

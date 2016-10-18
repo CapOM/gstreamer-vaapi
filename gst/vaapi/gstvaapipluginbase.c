@@ -489,7 +489,7 @@ reset_allocator (GstAllocator * allocator, GstVideoInfo * vinfo)
   if (!allocator)
     return TRUE;
 
-  orig_vi = gst_allocator_get_vaapi_video_info (allocator, NULL);
+  orig_vi = gst_allocator_get_vaapi_video_info (allocator, NULL, NULL);
   if (!gst_video_info_changed (orig_vi, vinfo))
     return FALSE;
 

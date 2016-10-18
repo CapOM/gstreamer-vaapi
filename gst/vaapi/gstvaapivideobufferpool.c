@@ -174,7 +174,8 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
         gst_object_unref (priv->allocator);
       if ((priv->allocator = allocator))
         gst_object_ref (allocator);
-      alloc_vip = gst_allocator_get_vaapi_video_info (priv->allocator, NULL);
+      alloc_vip =
+          gst_allocator_get_vaapi_video_info (priv->allocator, NULL, NULL);
       if (!alloc_vip)
         goto error_create_allocator_info;
       priv->alloc_info = *alloc_vip;
