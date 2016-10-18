@@ -1050,8 +1050,7 @@ gst_vaapi_plugin_base_set_gl_context (GstVaapiPluginBase * plugin,
       plugin->srcpad_can_dmabuf =
           (!(gst_gl_context_get_gl_api (gl_context) & GST_GL_API_GLES1)
           && GST_IS_GL_CONTEXT_EGL (gl_context)
-          && gst_gl_check_extension ("EGL_EXT_image_dma_buf_import",
-              GST_GL_CONTEXT_EGL (gl_context)->egl_exts));
+          && gst_gl_check_extension ("EGL_EXT_image_dma_buf_import", GST_GL_CONTEXT_EGL (gl_context)->egl_exts));       // should also check the vendor, if same no need linear
 #endif
 #if USE_EGL
       display_type = GST_VAAPI_DISPLAY_TYPE_EGL;
