@@ -1026,6 +1026,7 @@ expand_allowed_srcpad_caps (GstVaapiPostproc * postproc, GstCaps * caps)
 {
   GValue value = G_VALUE_INIT, v_format = G_VALUE_INIT;
   guint i, num_structures;
+  gint gl_upload_meta_idx = -1;
 
   if (postproc->filter == NULL)
     goto cleanup;
@@ -1046,8 +1047,10 @@ expand_allowed_srcpad_caps (GstVaapiPostproc * postproc, GstCaps * caps)
     GstStructure *structure;
 
     if (gst_caps_features_contains (features,
-            GST_CAPS_FEATURE_META_GST_VIDEO_GL_TEXTURE_UPLOAD_META))
+            GST_CAPS_FEATURE_META_GST_VIDEO_GL_TEXTURE_UPLOAD_META)) {
+      gl_upload_meta_idx = i;
       continue;
+    }
 
     structure = gst_caps_get_structure (caps, i);
     if (!structure)
@@ -1055,6 +1058,11 @@ expand_allowed_srcpad_caps (GstVaapiPostproc * postproc, GstCaps * caps)
     gst_structure_set_value (structure, "format", &value);
   }
   g_value_unset (&value);
+
+  if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (postproc)
+      && gl_upload_meta_idx > -1) {
+    gst_caps_remove_structure (caps, gl_upload_meta_idx);
+  }
 
 cleanup:
   return caps;
