@@ -751,7 +751,7 @@ gst_vaapi_video_allocator_new (GstVaapiDisplay * display,
     goto error_create_image_pool;
 
   gst_allocator_set_vaapi_video_info (GST_ALLOCATOR_CAST (allocator),
-      &allocator->image_info, 0);
+      &allocator->image_info, 0, 0);
   return GST_ALLOCATOR_CAST (allocator);
 
   /* ERRORS */
@@ -797,11 +797,13 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * allocator, GstVaapiVideoMeta * meta)
   gint dmabuf_fd;
   const GstVideoInfo *vip;
   guint flags;
+  GstPadDirection direction;
+  gboolean is_allocating_surface;
 
   g_return_val_if_fail (allocator != NULL, NULL);
   g_return_val_if_fail (meta != NULL, NULL);
 
-  vip = gst_allocator_get_vaapi_video_info (allocator, &flags);
+  vip = gst_allocator_get_vaapi_video_info (allocator, &flags, &direction);
   if (!vip)
     return NULL;
 
@@ -879,7 +881,7 @@ error_create_dmabuf_memory:
 
 GstAllocator *
 gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
-    const GstVideoInfo * vip, guint flags)
+    const GstVideoInfo * vip, guint flags, GstPadDirection direction)
 {
   GstAllocator *allocator = NULL;
   GstVaapiSurface *surface = NULL;
@@ -915,7 +917,8 @@ gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
     allocator = gst_dmabuf_allocator_new ();
     if (!allocator)
       break;
-    gst_allocator_set_vaapi_video_info (allocator, &alloc_info, flags);
+    gst_allocator_set_vaapi_video_info (allocator, &alloc_info, flags,
+        direction);
   } while (0);
 
   gst_vaapi_object_replace (&image, NULL);
@@ -1002,9 +1005,22 @@ flags_quark_get (void)
   return g_quark;
 }
 
+#define DIRECTION_QUARK direction_quark_get ()
+static GQuark
+direction_quark_get (void)
+{
+  static gsize g_quark;
+
+  if (g_once_init_enter (&g_quark)) {
+    gsize quark = (gsize) g_quark_from_static_string ("direction");
+    g_once_init_leave (&g_quark, quark);
+  }
+  return g_quark;
+}
+
 const GstVideoInfo *
 gst_allocator_get_vaapi_video_info (GstAllocator * allocator,
-    guint * out_flags_ptr)
+    guint * out_flags_ptr, GstPadDirection * direction_ptr)
 {
   const GstStructure *structure;
   const GValue *value;
@@ -1023,6 +1039,13 @@ gst_allocator_get_vaapi_video_info (GstAllocator * allocator,
     *out_flags_ptr = g_value_get_uint (value);
   }
 
+  if (direction_ptr) {
+    value = gst_structure_id_get_value (structure, DIRECTION_QUARK);
+    if (!value)
+      return NULL;
+    *direction_ptr = g_value_get_uint (value);
+  }
+
   value = gst_structure_id_get_value (structure, INFO_QUARK);
   if (!value)
     return NULL;
@@ -1031,7 +1054,7 @@ gst_allocator_get_vaapi_video_info (GstAllocator * allocator,
 
 gboolean
 gst_allocator_set_vaapi_video_info (GstAllocator * allocator,
-    const GstVideoInfo * vip, guint flags)
+    const GstVideoInfo * vip, guint flags, GstPadDirection direction)
 {
   g_return_val_if_fail (GST_IS_ALLOCATOR (allocator), FALSE);
   g_return_val_if_fail (vip != NULL, FALSE);
@@ -1039,7 +1062,8 @@ gst_allocator_set_vaapi_video_info (GstAllocator * allocator,
   g_object_set_qdata_full (G_OBJECT (allocator), GST_VAAPI_VIDEO_INFO_QUARK,
       gst_structure_new_id (GST_VAAPI_VIDEO_INFO_QUARK,
           INFO_QUARK, GST_VAAPI_TYPE_VIDEO_INFO, vip,
-          FLAGS_QUARK, G_TYPE_UINT, flags, NULL),
+          FLAGS_QUARK, G_TYPE_UINT, flags,
+          DIRECTION_QUARK, G_TYPE_UINT, direction, NULL),
       (GDestroyNotify) gst_structure_free);
 
   return TRUE;
