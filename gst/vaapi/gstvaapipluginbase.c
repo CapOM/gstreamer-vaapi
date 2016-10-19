@@ -242,6 +242,7 @@ gst_vaapi_plugin_base_init (GstVaapiPluginBase * plugin,
   plugin->debug_category = debug_category;
   plugin->display_type = GST_VAAPI_DISPLAY_TYPE_ANY;
   plugin->display_type_req = GST_VAAPI_DISPLAY_TYPE_ANY;
+  plugin->srcpad_can_dmabuf = FALSE;
 
   /* sink pad */
   plugin->sinkpad = gst_element_get_static_pad (GST_ELEMENT (plugin), "sink");
@@ -797,6 +798,9 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
   }
 #endif
 #endif
+  plugin->srcpad_can_dmabuf &=
+      gst_vaapi_caps_feature_contains (caps,
+      GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY);
 
   /* Make sure the display we pass down to the buffer pool is actually
      the expected one, especially when the downstream element requires
