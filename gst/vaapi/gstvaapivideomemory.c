@@ -838,21 +838,34 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * base_allocator,
   if (!meta)
     return NULL;
 
-  surface = gst_vaapi_surface_new_full (display, vip, flags);
-  if (!surface)
-    goto error_create_surface;
+  proxy = gst_vaapi_video_meta_get_surface_proxy (meta);
+  is_allocating_surface = !proxy;
 
-  proxy = gst_vaapi_surface_proxy_new (surface);
-  if (!proxy)
-    goto error_create_surface_proxy;
+  if (is_allocating_surface) {
+    /* Case when exporting output vpp surfaces. Or when exporting input surfaces
+       to be filled/imported by an uptream element such as v4l2src. */
+    surface = gst_vaapi_surface_new_full (display, vip, flags);
+    if (!surface)
+      goto error_create_surface;
+
+    proxy = gst_vaapi_surface_proxy_new (surface);
+    if (!proxy)
+      goto error_create_surface_proxy;
+  } else {
+    /* Case when exporting surfaces that comes from the decoder's context. */
+    surface = GST_VAAPI_SURFACE_PROXY_SURFACE (proxy);
+  }
 
   dmabuf_proxy = gst_vaapi_surface_get_dma_buf_handle (surface);
-  gst_vaapi_object_unref (surface);
   if (!dmabuf_proxy)
     goto error_create_dmabuf_proxy;
 
-  gst_vaapi_video_meta_set_surface_proxy (meta, proxy);
-  gst_vaapi_surface_proxy_unref (proxy);
+  if (is_allocating_surface) {
+    /* The proxy has incremented the surface ref count.  */
+    gst_vaapi_object_unref (surface);
+    gst_vaapi_video_meta_set_surface_proxy (meta, proxy);
+    gst_vaapi_surface_proxy_unref (proxy);
+  }
 
   /* Need dup because GstDmabufMemory creates the GstFdMemory with flag
    * GST_FD_MEMORY_FLAG_NONE. So when being freed it calls close on the fd
@@ -866,9 +879,19 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * base_allocator,
   if (!mem)
     goto error_create_dmabuf_memory;
 
-  gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
-      GST_VAAPI_BUFFER_PROXY_QUARK, dmabuf_proxy,
-      (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
+  if (is_allocating_surface) {
+    /* Just put the GstVaapiBufferProxy, aka dmabuf_proxy, in a qdata and lets
+     * forget about it. */
+    gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
+        GST_VAAPI_BUFFER_PROXY_QUARK, dmabuf_proxy,
+        (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
+  } else {
+    /* When not allocating the surface from this pool, so when exporting
+     * from the decoder's va context, we need to know which GstMemory belongs
+     * to a provided surface. */
+    gst_vaapi_buffer_proxy_set_mem (dmabuf_proxy, mem);
+    gst_vaapi_surface_set_buffer_proxy (surface, dmabuf_proxy);
+  }
 
   /* The surface is an output so it is filled by a gst vaapi element. So the
    * va driver needs write access on the surface. The following call will
@@ -896,7 +919,10 @@ error_create_surface_proxy:
 error_create_dmabuf_proxy:
   {
     GST_ERROR ("failed to export VA surface to DMABUF");
-    gst_vaapi_surface_proxy_unref (proxy);
+    if (surface)
+      gst_vaapi_object_unref (surface);
+    if (proxy)
+      gst_vaapi_surface_proxy_unref (proxy);
     return NULL;
   }
 error_create_dmabuf_handle:

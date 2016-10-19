@@ -268,6 +268,8 @@ gst_vaapi_video_buffer_pool_alloc_buffer (GstBufferPool * pool,
 {
   GstVaapiVideoBufferPoolPrivate *const priv =
       GST_VAAPI_VIDEO_BUFFER_POOL (pool)->priv;
+  GstVaapiVideoBufferPoolAcquireParams *const priv_params =
+      (GstVaapiVideoBufferPoolAcquireParams *) params;
   GstVaapiVideoMeta *meta;
   GstMemory *mem;
   GstBuffer *buffer;
@@ -290,6 +292,9 @@ gst_vaapi_video_buffer_pool_alloc_buffer (GstBufferPool * pool,
   }
   if (!buffer)
     goto error_create_buffer;
+
+  if (priv_params && priv_params->proxy)
+    gst_vaapi_video_meta_set_surface_proxy (meta, priv_params->proxy);
 
   if (priv->use_dmabuf_memory)
     mem = gst_vaapi_dmabuf_memory_new (priv->allocator, meta);
