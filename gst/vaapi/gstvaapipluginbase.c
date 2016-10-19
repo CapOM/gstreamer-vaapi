@@ -521,8 +521,22 @@ ensure_srcpad_allocator (GstVaapiPluginBase * plugin, GstVideoInfo * vinfo)
     return TRUE;
 
   if (plugin->srcpad_can_dmabuf) {
+    /* Pair vendor/device identifies an unique physical device. */
+    guint va_vendor_id = 0x00;
+    guint va_device_id = 0x00;
+    guint gl_vendor_id = 0x00;
+    guint gl_device_id = 0x00;
+
+    /* Requires linear memory only if fd export is done on a different device
+     * than the device where the fd is imported. */
+    gboolean same_physical_device = va_vendor_id == gl_vendor_id
+        && va_device_id == gl_device_id;
+    guint flags =
+        same_physical_device ? 0 : GST_VAAPI_SURFACE_ALLOC_FLAG_LINEAR_STORAGE;
+
     plugin->srcpad_allocator =
-        gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo, 0, GST_PAD_SRC);
+        gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo, flags,
+        GST_PAD_SRC);
   } else {
     plugin->srcpad_allocator =
         gst_vaapi_video_allocator_new (plugin->display, vinfo, 0);
