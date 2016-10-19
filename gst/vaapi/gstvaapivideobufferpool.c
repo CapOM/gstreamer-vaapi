@@ -167,6 +167,7 @@ gst_vaapi_video_buffer_pool_set_config (GstBufferPool * pool,
 
   /* not our allocator, not our buffers */
   if (allocator) {
+
     priv->use_dmabuf_memory = gst_vaapi_is_dmabuf_allocator (allocator);
     if (priv->use_dmabuf_memory ||
         g_strcmp0 (allocator->mem_type, GST_VAAPI_VIDEO_MEMORY_NAME) == 0) {

@@ -506,7 +506,7 @@ ensure_sinkpad_allocator (GstVaapiPluginBase * plugin, GstVideoInfo * vinfo)
   if (has_dmabuf_capable_peer (plugin, plugin->sinkpad)) {
     plugin->sinkpad_allocator =
         gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo,
-        GST_VAAPI_SURFACE_ALLOC_FLAG_LINEAR_STORAGE);
+        GST_VAAPI_SURFACE_ALLOC_FLAG_LINEAR_STORAGE, GST_PAD_SINK);
   } else {
     plugin->sinkpad_allocator =
         gst_vaapi_video_allocator_new (plugin->display, vinfo, 0);
