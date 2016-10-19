@@ -1030,3 +1030,16 @@ gst_vaapi_surface_set_subpictures_from_composition (GstVaapiSurface * surface,
   }
   return TRUE;
 }
+
+void
+gst_vaapi_surface_set_buffer_proxy (GstVaapiSurface * surface,
+    GstVaapiBufferProxy * proxy)
+{
+  gst_vaapi_buffer_proxy_replace (&surface->extbuf_proxy, proxy);
+}
+
+GstVaapiBufferProxy *
+gst_vaapi_surface_peek_buffer_proxy (GstVaapiSurface * surface)
+{
+  return surface->extbuf_proxy;
+}
