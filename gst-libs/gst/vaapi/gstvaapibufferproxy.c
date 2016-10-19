@@ -334,3 +334,15 @@ gst_vaapi_buffer_proxy_get_size (GstVaapiBufferProxy * proxy)
   return 0;
 #endif
 }
+
+void
+gst_vaapi_buffer_proxy_release_data (GstVaapiBufferProxy * proxy)
+{
+  g_return_if_fail (proxy != NULL);
+
+  if (proxy->destroy_func) {
+    proxy->destroy_func (proxy->destroy_data);
+    proxy->destroy_func = NULL;
+    proxy->destroy_data = NULL;
+  }
+}
