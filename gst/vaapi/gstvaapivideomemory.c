@@ -959,6 +959,14 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * base_allocator,
   gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (mem),
       GST_VAAPI_BUFFER_PROXY_QUARK, dmabuf_proxy,
       (GDestroyNotify) gst_vaapi_buffer_proxy_unref);
+
+  /* The surface is an output so it is filled by a gst vaapi element. So the
+   * va driver needs write access on the surface. The following call will
+   * released the derived image so mark the surface as unbusy. This is how it
+   * has to be done as discussed on libva mailing list. */
+  if (allocator->direction == GST_PAD_SRC)
+    gst_vaapi_buffer_proxy_release_data (dmabuf_proxy);
+
   return mem;
 
   /* ERRORS */
