@@ -243,6 +243,9 @@ gst_vaapi_dmabuf_memory_new (GstAllocator * allocator,
 struct _GstVaapiDmaBufAllocator
 {
   GstDmaBufAllocator parent_instance;
+
+  /*< private >*/
+  GstPadDirection direction;
 };
 
 /**
@@ -262,7 +265,7 @@ gst_vaapi_dmabuf_allocator_get_type (void) G_GNUC_CONST;
 G_GNUC_INTERNAL
 GstAllocator *
 gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
-    const GstVideoInfo * vip, guint flags);
+    const GstVideoInfo * vip, guint flags, GstPadDirection direction);
 
 G_GNUC_INTERNAL
 const GstVideoInfo *

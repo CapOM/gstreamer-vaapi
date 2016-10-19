@@ -1013,11 +1013,12 @@ gst_vaapi_dmabuf_allocator_init (GstVaapiDmaBufAllocator * allocator)
   GstAllocator *const base_allocator = GST_ALLOCATOR_CAST (allocator);
 
   base_allocator->mem_type = GST_VAAPI_DMABUF_ALLOCATOR_NAME;
+  allocator->direction = GST_PAD_SINK;
 }
 
 GstAllocator *
 gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
-    const GstVideoInfo * vip, guint flags)
+    const GstVideoInfo * vip, guint flags, GstPadDirection direction)
 {
   GstVaapiDmaBufAllocator *allocator = NULL;
   GstVaapiSurface *surface = NULL;
@@ -1049,6 +1050,8 @@ gst_vaapi_dmabuf_allocator_new (GstVaapiDisplay * display,
     goto error_no_allocator;
   gst_allocator_set_vaapi_video_info (GST_ALLOCATOR_CAST (allocator),
       &alloc_info, flags);
+
+  allocator->direction = direction;
 
 bail:
   gst_vaapi_object_replace (&image, NULL);
