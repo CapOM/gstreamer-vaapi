@@ -82,7 +82,8 @@ static const char gst_vaapidecode_src_caps_str[] =
 #if (USE_GLX || USE_EGL)
     GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS ";"
 #endif
-    GST_VIDEO_CAPS_MAKE("{ NV12, I420, YV12, P010_10LE }");
+    GST_VIDEO_CAPS_MAKE("{ NV12, I420, YV12, P010_10LE }") ";"
+    GST_VAAPI_MAKE_DMABUF_CAPS;
 
 static GstStaticPadTemplate gst_vaapidecode_src_factory =
     GST_STATIC_PAD_TEMPLATE(
@@ -237,6 +238,15 @@ gst_vaapidecode_ensure_allowed_srcpad_caps (GstVaapiDecode * decode)
   gst_caps_append (out_caps, gst_caps_copy (raw_caps));
   decode->allowed_srcpad_caps = out_caps;
 
+  if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode)
+      &&
+      !gst_caps_is_empty (GST_VAAPI_PLUGIN_BASE (decode)->srcpad_rejected_caps)
+      ) {
+    out_caps = gst_caps_make_writable (out_caps);
+    gst_caps_append (out_caps,
+        gst_caps_from_string (GST_VAAPI_MAKE_DMABUF_CAPS));
+  }
+
   GST_INFO_OBJECT (decode, "allowed srcpad caps: %" GST_PTR_FORMAT,
       decode->allowed_srcpad_caps);
 
@@ -282,7 +292,6 @@ gst_vaapidecode_update_src_caps (GstVaapiDecode * decode)
 
   if (feature == GST_VAAPI_CAPS_FEATURE_NOT_NEGOTIATED)
     return FALSE;
-
 #if (!USE_GLX && !USE_EGL)
   /* This is a very pathological situation. Should not happen. */
   if (feature == GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META)
@@ -321,6 +330,7 @@ gst_vaapidecode_update_src_caps (GstVaapiDecode * decode)
 
   switch (feature) {
     case GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META:
+    case GST_VAAPI_CAPS_FEATURE_DMABUF:
     case GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE:{
       GstStructure *structure = gst_caps_get_structure (state->caps, 0);
 
@@ -514,8 +524,21 @@ gst_vaapidecode_push_decoded_frame (GstVideoDecoder * vdec,
     if (gst_pad_needs_reconfigure (GST_VIDEO_DECODER_SRC_PAD (vdec))
         || alloc_renegotiate || caps_renegotiate) {
 
-      if (!gst_vaapidecode_negotiate (decode))
-        return GST_FLOW_ERROR;
+      if (!gst_vaapidecode_negotiate (decode)) {
+
+        /* Negotiation failed on purpose because pad is marked to be
+         * reconfigured. */
+        if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode) &&
+            gst_pad_check_reconfigure (GST_VIDEO_DECODER_SRC_PAD (vdec))) {
+          gst_caps_replace (&decode->allowed_srcpad_caps, NULL);
+          g_print ("-- gst vaapi decode try to renego\n");
+          if (!gst_vaapidecode_negotiate (decode))
+            return GST_FLOW_ERROR;
+        } else {
+          g_print ("-- gst vaapi decode failed to nego\n");
+          return GST_FLOW_ERROR;
+        }
+      }
     }
 
     gst_vaapi_surface_proxy_set_destroy_notify (proxy,

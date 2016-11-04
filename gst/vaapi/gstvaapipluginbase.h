@@ -144,6 +144,7 @@ struct _GstVaapiPluginBase
   GstObject *gl_context;
 
   GstCaps *allowed_raw_caps;
+  GstCaps *srcpad_rejected_caps;
   GstAllocator *sinkpad_allocator;
   GstAllocator *srcpad_allocator;
   gboolean srcpad_can_dmabuf;
