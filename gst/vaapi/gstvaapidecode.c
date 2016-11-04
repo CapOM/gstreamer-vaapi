@@ -82,7 +82,8 @@ static const char gst_vaapidecode_src_caps_str[] =
 #if (USE_GLX || USE_EGL)
     GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS ";"
 #endif
-    GST_VIDEO_CAPS_MAKE("{ NV12, I420, YV12, P010_10LE }");
+    GST_VIDEO_CAPS_MAKE("{ NV12, I420, YV12, P010_10LE }") ";"
+    GST_VAAPI_MAKE_DMABUF_CAPS;
 
 static GstStaticPadTemplate gst_vaapidecode_src_factory =
     GST_STATIC_PAD_TEMPLATE(
@@ -236,6 +237,13 @@ gst_vaapidecode_ensure_allowed_srcpad_caps (GstVaapiDecode * decode)
   gst_caps_append (out_caps, gst_caps_copy (raw_caps));
   decode->allowed_srcpad_caps = out_caps;
 
+  if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode)
+      && gst_caps_is_empty (raw_caps)) {
+    out_caps = gst_caps_make_writable (out_caps);
+    gst_caps_append (out_caps,
+        gst_caps_from_string (GST_VAAPI_MAKE_DMABUF_CAPS));
+  }
+
   GST_INFO_OBJECT (decode, "allowed srcpad caps: %" GST_PTR_FORMAT,
       decode->allowed_srcpad_caps);
 
@@ -320,6 +328,7 @@ gst_vaapidecode_update_src_caps (GstVaapiDecode * decode)
 
   switch (feature) {
     case GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META:
+    case GST_VAAPI_CAPS_FEATURE_DMABUF:
     case GST_VAAPI_CAPS_FEATURE_VAAPI_SURFACE:{
       GstStructure *structure = gst_caps_get_structure (state->caps, 0);
 
@@ -471,8 +480,18 @@ gst_vaapidecode_negotiate (GstVaapiDecode * decode)
     return FALSE;
   if (!gst_vaapidecode_update_src_caps (decode))
     return FALSE;
-  if (!gst_video_decoder_negotiate (vdec))
-    return FALSE;
+  if (!gst_video_decoder_negotiate (vdec)) {
+    gst_caps_replace (&decode->allowed_srcpad_caps, NULL);
+
+    if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode)) {
+      if (!gst_vaapidecode_update_src_caps (decode))
+        return FALSE;
+      if (!gst_video_decoder_negotiate (vdec))
+        return FALSE;
+    } else {
+      return FALSE;
+    }
+  }
   if (!gst_vaapi_plugin_base_set_caps (plugin, NULL, decode->srcpad_caps))
     return FALSE;
 

@@ -252,6 +252,8 @@ gst_vaapi_plugin_base_init (GstVaapiPluginBase * plugin,
   if (!(GST_OBJECT_FLAGS (plugin) & GST_ELEMENT_FLAG_SINK))
     plugin->srcpad = gst_element_get_static_pad (GST_ELEMENT (plugin), "src");
   gst_video_info_init (&plugin->srcpad_info);
+
+  plugin->srcpad_rejected_caps = NULL;
 }
 
 void
@@ -277,6 +279,7 @@ gst_vaapi_plugin_base_finalize (GstVaapiPluginBase * plugin)
 gboolean
 gst_vaapi_plugin_base_open (GstVaapiPluginBase * plugin)
 {
+  plugin->srcpad_rejected_caps = gst_caps_new_empty ();
   return TRUE;
 }
 
@@ -310,6 +313,7 @@ gst_vaapi_plugin_base_close (GstVaapiPluginBase * plugin)
   gst_caps_replace (&plugin->srcpad_caps, NULL);
   gst_video_info_init (&plugin->srcpad_info);
   gst_caps_replace (&plugin->allowed_raw_caps, NULL);
+  gst_caps_replace (&plugin->srcpad_rejected_caps, NULL);
 }
 
 /**
@@ -537,6 +541,29 @@ ensure_srcpad_allocator (GstVaapiPluginBase * plugin, GstVideoInfo * vinfo)
     plugin->srcpad_allocator =
         gst_vaapi_dmabuf_allocator_new (plugin->display, vinfo, flags,
         GST_PAD_SRC);
+
+    /* Try to map the fd memory. */
+    if (plugin->srcpad_allocator
+        && gst_caps_is_empty (plugin->srcpad_rejected_caps)) {
+      GstVaapiVideoMeta *meta = gst_vaapi_video_meta_new (plugin->display);
+      if (meta) {
+        GstMemory *mem =
+            gst_vaapi_dmabuf_memory_new (plugin->srcpad_allocator, meta);
+        if (mem) {
+          GstMapInfo info;
+          if (!gst_memory_map (mem, &info, GST_MAP_READWRITE) || info.size == 0) {
+            GST_DEBUG ("failed to map dma buffer or 0 size");
+            gst_object_unref (plugin->srcpad_allocator);
+            plugin->srcpad_allocator = NULL;
+          } else {
+            GST_DEBUG ("suceeded to map dma buffer");
+            gst_memory_unmap (mem, &info);
+          }
+          gst_memory_unref (mem);
+        }
+        gst_vaapi_video_meta_unref (meta);
+      }
+    }
   } else {
     plugin->srcpad_allocator =
         gst_vaapi_video_allocator_new (plugin->display, vinfo, 0);
@@ -820,7 +847,8 @@ gst_vaapi_plugin_base_decide_allocation (GstVaapiPluginBase * plugin,
 #endif
   plugin->srcpad_can_dmabuf &=
       gst_vaapi_caps_feature_contains (caps,
-      GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY);
+      GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY) ||
+      gst_vaapi_caps_feature_contains (caps, GST_VAAPI_CAPS_FEATURE_DMABUF);
 
   /* Make sure the display we pass down to the buffer pool is actually
      the expected one, especially when the downstream element requires
@@ -896,7 +924,14 @@ error_ensure_display:
   }
 error_create_allocator:
   {
-    GST_ERROR_OBJECT (plugin, "failed to create allocator");
+    if (plugin->srcpad_can_dmabuf
+        && gst_caps_is_empty (plugin->srcpad_rejected_caps)) {
+      GST_DEBUG ("fail to use dmabuf without DMABuf caps feature");
+      plugin->srcpad_rejected_caps =
+          gst_caps_merge (plugin->srcpad_rejected_caps, caps);
+    } else {
+      GST_ERROR_OBJECT (plugin, "failed to create allocator");
+    }
     return FALSE;
   }
 error_create_pool:
@@ -1156,5 +1191,10 @@ gst_vaapi_plugin_base_get_allowed_raw_caps (GstVaapiPluginBase * plugin)
 {
   if (!ensure_allowed_raw_caps (plugin))
     return NULL;
+
+  if (plugin->srcpad_can_dmabuf
+      && !gst_caps_is_empty (plugin->srcpad_rejected_caps))
+    return gst_caps_new_empty ();
+
   return plugin->allowed_raw_caps;
 }
