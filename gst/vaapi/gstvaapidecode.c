@@ -480,18 +480,8 @@ gst_vaapidecode_negotiate (GstVaapiDecode * decode)
     return FALSE;
   if (!gst_vaapidecode_update_src_caps (decode))
     return FALSE;
-  if (!gst_video_decoder_negotiate (vdec)) {
-    gst_caps_replace (&decode->allowed_srcpad_caps, NULL);
-
-    if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode)) {
-      if (!gst_vaapidecode_update_src_caps (decode))
-        return FALSE;
-      if (!gst_video_decoder_negotiate (vdec))
-        return FALSE;
-    } else {
-      return FALSE;
-    }
-  }
+  if (!gst_video_decoder_negotiate (vdec))
+    return FALSE;
   if (!gst_vaapi_plugin_base_set_caps (plugin, NULL, decode->srcpad_caps))
     return FALSE;
 
@@ -532,8 +522,19 @@ gst_vaapidecode_push_decoded_frame (GstVideoDecoder * vdec,
     if (gst_pad_needs_reconfigure (GST_VIDEO_DECODER_SRC_PAD (vdec))
         || alloc_renegotiate || caps_renegotiate) {
 
-      if (!gst_vaapidecode_negotiate (decode))
-        return GST_FLOW_ERROR;
+      if (!gst_vaapidecode_negotiate (decode)) {
+
+        /* Negotiation failed on purpose because pad is marked to be
+         * reconfigured. */
+        if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode) &&
+            gst_pad_check_reconfigure (GST_VIDEO_DECODER_SRC_PAD (vdec))) {
+          gst_caps_replace (&decode->allowed_srcpad_caps, NULL);
+          if (!gst_vaapidecode_negotiate (decode))
+            return GST_FLOW_ERROR;
+        } else {
+          return GST_FLOW_ERROR;
+        }
+      }
     }
 
     gst_vaapi_surface_proxy_set_destroy_notify (proxy,
