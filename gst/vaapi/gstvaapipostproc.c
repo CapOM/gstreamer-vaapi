@@ -68,7 +68,8 @@ static const char gst_vaapipostproc_src_caps_str[] =
   GST_VAAPI_MAKE_GLTEXUPLOAD_CAPS "; "
 #endif
   GST_VIDEO_CAPS_MAKE (GST_VIDEO_FORMATS_ALL) ", "
-  GST_CAPS_INTERLACED_FALSE;
+  GST_CAPS_INTERLACED_FALSE ";"
+  GST_VAAPI_MAKE_DMABUF_CAPS;
 /* *INDENT-ON* */
 
 /* *INDENT-OFF* */
@@ -1029,6 +1030,7 @@ expand_allowed_srcpad_caps (GstVaapiPostproc * postproc, GstCaps * caps)
 {
   GValue value = G_VALUE_INIT, v_format = G_VALUE_INIT;
   guint i, num_structures;
+  gint dmabuf_feature_idx = -1;
   gint gl_upload_meta_idx = -1;
 
   if (postproc->filter == NULL)
@@ -1062,9 +1064,25 @@ expand_allowed_srcpad_caps (GstVaapiPostproc * postproc, GstCaps * caps)
   }
   g_value_unset (&value);
 
-  if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (postproc)
-      && gl_upload_meta_idx > -1) {
-    gst_caps_remove_structure (caps, gl_upload_meta_idx);
+  if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (postproc)) {
+    if (gl_upload_meta_idx > -1)
+      gst_caps_remove_structure (caps, gl_upload_meta_idx);
+
+    num_structures = gst_caps_get_size (caps);
+    for (i = 0; i < num_structures; i++) {
+      GstCapsFeatures *const features = gst_caps_get_features (caps, i);
+      if (gst_caps_features_contains (features, GST_CAPS_FEATURE_MEMORY_DMABUF)) {
+        dmabuf_feature_idx = i;
+        continue;
+      }
+    }
+
+    if (dmabuf_feature_idx > -1
+        &&
+        gst_caps_is_empty (GST_VAAPI_PLUGIN_BASE
+            (postproc)->srcpad_rejected_caps)) {
+      gst_caps_remove_structure (caps, dmabuf_feature_idx);
+    }
   }
 
 cleanup:
