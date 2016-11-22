@@ -544,7 +544,10 @@ ensure_srcpad_allocator (GstVaapiPluginBase * plugin, GstVideoInfo * vinfo)
 
     /* Try to map the fd memory. */
     if (plugin->srcpad_allocator
-        && gst_caps_is_empty (plugin->srcpad_rejected_caps)) {
+        && ((plugin->srcpad_caps
+                && gst_vaapi_caps_feature_contains (plugin->srcpad_caps,
+                    GST_VAAPI_CAPS_FEATURE_SYSTEM_MEMORY))
+            || gst_caps_is_empty (plugin->srcpad_rejected_caps))) {
       GstVaapiVideoMeta *meta = gst_vaapi_video_meta_new (plugin->display);
       if (meta) {
         GstMemory *mem =
@@ -552,7 +555,7 @@ ensure_srcpad_allocator (GstVaapiPluginBase * plugin, GstVideoInfo * vinfo)
         if (mem) {
           GstMapInfo info;
           if (!gst_memory_map (mem, &info, GST_MAP_READWRITE) || info.size == 0) {
-            GST_DEBUG ("failed to map dma buffer or 0 size");
+            GST_ERROR ("failed to map dma buffer or 0 size");
             gst_object_unref (plugin->srcpad_allocator);
             plugin->srcpad_allocator = NULL;
           } else {

@@ -238,7 +238,8 @@ gst_vaapidecode_ensure_allowed_srcpad_caps (GstVaapiDecode * decode)
   decode->allowed_srcpad_caps = out_caps;
 
   if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode)
-      && gst_caps_is_empty (raw_caps)) {
+      /*&& gst_caps_is_empty (raw_caps) */
+      ) {
     out_caps = gst_caps_make_writable (out_caps);
     gst_caps_append (out_caps,
         gst_caps_from_string (GST_VAAPI_MAKE_DMABUF_CAPS));
@@ -287,9 +288,11 @@ gst_vaapidecode_update_src_caps (GstVaapiDecode * decode)
   feature = gst_vaapi_find_preferred_caps_feature (srcpad, allowed, &format);
   gst_caps_unref (allowed);
 
-  if (feature == GST_VAAPI_CAPS_FEATURE_NOT_NEGOTIATED)
+  if (feature == GST_VAAPI_CAPS_FEATURE_NOT_NEGOTIATED) {
+    g_print ("-- gst vaapi feature not nego, allowed: %s\n",
+        gst_caps_to_string (allowed));
     return FALSE;
-
+  }
 #if (!USE_GLX && !USE_EGL)
   /* This is a very pathological situation. Should not happen. */
   if (feature == GST_VAAPI_CAPS_FEATURE_GL_TEXTURE_UPLOAD_META)
@@ -529,9 +532,11 @@ gst_vaapidecode_push_decoded_frame (GstVideoDecoder * vdec,
         if (GST_VAAPI_PLUGIN_BASE_SRC_PAD_CAN_DMABUF (decode) &&
             gst_pad_check_reconfigure (GST_VIDEO_DECODER_SRC_PAD (vdec))) {
           gst_caps_replace (&decode->allowed_srcpad_caps, NULL);
+          g_print ("-- gst vaapi decode try to renego\n");
           if (!gst_vaapidecode_negotiate (decode))
             return GST_FLOW_ERROR;
         } else {
+          g_print ("-- gst vaapi decode failed to nego\n");
           return GST_FLOW_ERROR;
         }
       }
